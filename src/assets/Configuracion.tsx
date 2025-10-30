@@ -4,7 +4,7 @@ import { FaShieldAlt, FaKey } from "react-icons/fa";
 import { useLocation } from "react-router-dom";
 
 /* ======== API ======== */
-const API_BASE = "https://overvaliantly-discourseless-delilah.ngrok-free.dev";
+const API_BASE = "https://gillian-semiluminous-blubberingly.ngrok-free.dev/";
 const POST_CAMBIAR_PASSWORD_URL = `${API_BASE}/admin/perfil/cambiar-password`;
 
 type TabKey = "institucion" | "seguridad";

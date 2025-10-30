@@ -26,7 +26,7 @@ const RestContra: React.FC = () => {
 
     try {
       const res = await fetch(
-        'https://overvaliantly-discourseless-delilah.ngrok-free.dev/auth/recovery/admin/enviar',
+        'https://gillian-semiluminous-blubberingly.ngrok-free.dev/auth/recovery/admin/enviar',
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Accept: 'application/json' },

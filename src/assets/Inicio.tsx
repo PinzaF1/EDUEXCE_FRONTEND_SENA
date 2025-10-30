@@ -1,6 +1,5 @@
 // src/pages/dashboard/Inicio.tsx
 import React, { useEffect, useState } from "react";
-import { FaHome } from "react-icons/fa";
 
 // componentes
 import StatsIslas from "../assets/Islas";
@@ -16,7 +15,7 @@ import type { RendItem } from "../assets/RendimientoPorArea";
 
 const RAW_BASE =
   (import.meta as any).env?.VITE_API_URL ||
-  "https://overvaliantly-discourseless-delilah.ngrok-free.dev";
+  "https://gillian-semiluminous-blubberingly.ngrok-free.dev/";
 const API_BASE = RAW_BASE.replace(/\/+$/, "");
 
 const authHeaders = () => {
@@ -69,11 +68,11 @@ const LABEL_STATS: Record<
 };
 
 const COLOR_STATS: Record<string, string> = {
-  "Lectura Crítica": "#3b83f6c3",
-  Matemáticas: "#ef4444b9",
-  "Sociales y Ciudadanas": "#f59f0bb8",
-  "Ciencias Naturales": "#0fac78b5",
-  Inglés: "#a17ef4ff",
+  "Lectura Crítica": "#3b82f6",
+  Matemáticas: "#ef4444",
+  "Sociales y Ciudadanas": "#f59e0b",
+  "Ciencias Naturales": "#10b981",
+  Inglés: "#8b5cf6",
 };
 
 type SerieKey = keyof PuntoMes;
@@ -236,7 +235,7 @@ const Inicio: React.FC = () => {
     loadAll();
     const int = setInterval(() => {
       if (document.visibilityState === "visible") loadAll();
-    }, 60_000);
+    }, 5_000);
 
     return () => {
       cancelled = true;
@@ -245,34 +244,20 @@ const Inicio: React.FC = () => {
   }, []);
 
   return (
-    <div className="bg-white rounded-xl shadow-lg p-6">
-      <div className="flex items-start gap-3 mb-5">
-        <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center">
-          <FaHome className="text-blue-600" />
-        </div>
-        <div>
-          <h2 className="text-2xl font-bold text-gray-800">Panel de Inicio</h2>
-          <div className="mt-2 h-[2px] w-40 rounded-full bg-gradient-to-r from-blue-300 to-sky-200" />
-        </div>
+    <div className="space-y-6">
+      {/* Tarjetas de estadísticas */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-5">
+        <StatsIslas data={islas} />
       </div>
 
-      <div className="rounded-2xl p-5 border bg-gradient-to-br from-indigo-500/10 to-indigo-500/10">
-        <div className="bg-white rounded-xl border p-4">
-          <StatsIslas data={islas} />
-        </div>
-      </div>
-
-      <div className="mt-6 grid grid-cols-1 xl:grid-cols-2 gap-6">
-        <div className="rounded-2xl p-5 border bg-gradient-to-br from-violet-500/10 to-violet-500/10">
-          <div className="bg-white rounded-xl border p-4">
-            <ProgresoPorArea data={serie} />
-          </div>
+      {/* Gráficos */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+          <ProgresoPorArea data={serie} />
         </div>
 
-        <div className="rounded-2xl p-5 border bg-gradient-to-br from-rose-500/10 to-rose-500/10">
-          <div className="bg-white rounded-xl border p-4">
-            <RendimientoPorArea data={rend} />
-          </div>
+        <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+          <RendimientoPorArea data={rend} />
         </div>
       </div>
     </div>

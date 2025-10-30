@@ -2,14 +2,18 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   FaSearch, FaPlus, FaFileUpload, FaEdit, FaTrash,
-  FaGraduationCap, FaToggleOn, FaToggleOff, FaTimes, FaUpload
+  FaToggleOn, FaTimes,
+  FaCheckCircle, FaTimesCircle
 } from "react-icons/fa";
 
 /* API */
 const BASE_URL =
-  (import.meta as any).env?.VITE_API_URL?.replace(/\/$/, "") ||
-  "https://overvaliantly-discourseless-delilah.ngrok-free.dev";
-const api = (p = "") => `${BASE_URL}${p.startsWith("/") ? p : "/" + p}`;
+  (import.meta as any).env?.VITE_API_URL?.replace(/\/+$/, "") ||
+  "https://gillian-semiluminous-blubberingly.ngrok-free.dev";
+const api = (p = "") => {
+  const path = p.startsWith("/") ? p : `/${p}`;
+  return `${BASE_URL}${path}`;
+};
 const token = () => {
   try {
     return (
@@ -61,7 +65,9 @@ type Estudiante = {
   curso: string | null;
   jornada: string | null;
   correo: string | null;
+  direccion?: string | null;
   is_active?: boolean;
+  ultima_actividad?: string;
 };
 
 /* UI */
@@ -125,72 +131,6 @@ const NiceSelect: React.FC<{
   );
 };
 
-const Confirm: React.FC<{
-  open: boolean;
-  title: string;
-  message: React.ReactNode;
-  confirmText?: string;
-  confirmColor?: "red" | "green" | "blue";
-  onConfirm: () => void;
-  onClose: () => void;
-}> = ({
-  open,
-  title,
-  message,
-  confirmText = "Confirmar",
-  confirmColor = "red",
-  onConfirm,
-  onClose,
-}) => {
-  if (!open) return null;
-  const color =
-    confirmColor === "red"
-      ? "bg-red-600 hover:bg-red-700"
-      : confirmColor === "green"
-      ? "bg-green-600 hover:bg-green-700"
-      : "bg-blue-600 hover:bg-blue-700";
-  return (
-    <div className="fixed inset-0 z-[70] grid place-items-center">
-      <div className="absolute inset-0 bg-black/30" onClick={onClose} />
-      <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl border p-5">
-        <h3 className="text-lg font-semibold text-gray-800">{title}</h3>
-        <div className="mt-2 text-gray-600 text-sm">{message}</div>
-        <div className="mt-5 flex justify-end gap-3">
-          <button className="px-4 py-2 rounded-xl border hover:bg-gray-50" onClick={onClose}>
-            Cancelar
-          </button>
-          <button className={`px-4 py-2 rounded-xl text-white ${color}`} onClick={onConfirm}>
-            {confirmText}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-const Toast: React.FC<{
-  text: string;
-  type?: "ok" | "err" | "info";
-  onClose: () => void;
-}> = ({ text, type = "info", onClose }) => {
-  const base = "fixed top-4 right-4 z-[80] rounded-xl px-4 py-3 flex gap-3 items-start border shadow-sm";
-  const cls =
-    type === "ok"
-      ? "bg-emerald-50 text-emerald-800 border-emerald-200"
-      : type === "err"
-      ? "bg-rose-50 text-rose-800 border-rose-200"
-      : "bg-sky-50 text-sky-800 border-sky-200";
-  return (
-    <div role="status" aria-live="polite" className={`${base} ${cls}`}>
-      <span className="pt-[2px]">•</span>
-      <div className="text-sm">{text}</div>
-      <button className="ml-2 opacity-80 hover:opacity-100" onClick={onClose} aria-label="Cerrar notificación">
-        <FaTimes />
-      </button>
-    </div>
-  );
-};
-
 /* Componente */
 const Estudiantes: React.FC = () => {
   const [rows, setRows] = useState<Estudiante[]>([]);
@@ -201,24 +141,23 @@ const Estudiantes: React.FC = () => {
     [curso, setCurso] = useState(""),
     [jornada, setJornada] = useState(""),
     [q, setQ] = useState("");
-  const [crear, setCrear] = useState(false),
-    [inst, setInst] = useState("—");
+  const [crear, setCrear] = useState(false);
   const [form, setForm] = useState({
     nombre: "", apellido: "", tipo_documento: "", numero_documento: "",
-    grado: "", curso: "", jornada: "", correo: "",
+    grado: "", curso: "", jornada: "", correo: "", direccion: "",
   });
   const [editOpen, setEditOpen] = useState(false),
     [edit, setEdit] = useState<Partial<Estudiante>>({}),
     [editMsg, setEditMsg] = useState("");
   const [confirm, setConfirm] = useState<{ t: "inactivar" | "eliminar"; e?: Estudiante } | null>(null);
+  const [filterActivo, setFilterActivo] = useState<"todos" | "activos" | "inactivos">("todos");
   const [page, setPage] = useState(1);
   const pageSize = 10;
   const [impOpen, setImpOpen] = useState(false), [drag, setDrag] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const instName = (typeof window !== 'undefined' ? localStorage.getItem('nombre_institucion') : '') || '';
 
   const say = (text: string, type?: "ok" | "err" | "info") => { setToast({ text, type }); setTimeout(() => setToast(null), 4200); };
-  const initials = (e: Estudiante) =>
-    `${(e.nombre || "•").trim()[0]?.toUpperCase() || "•"}${(e.apellido || "").trim()[0]?.toUpperCase() || ""}`;
 
   // Normaliza is_active leyendo is_active / is_activo / isActive / activo
   const normRow = (r: any): Estudiante => ({
@@ -231,18 +170,19 @@ const Estudiantes: React.FC = () => {
     curso: r?.curso ?? null,
     jornada: r?.jornada ?? null,
     correo: r?.correo ?? null,
+    direccion: r?.direccion ?? r?.direccion_residencia ?? null,
     is_active: toBool(r?.is_active ?? r?.is_activo ?? r?.isActive ?? r?.activo ?? true),
+    ultima_actividad: r?.updatedAt ?? r?.updated_at ?? r?.last_activity_at ?? r?.ultima_actividad ?? null,
   });
 
   useEffect(() => {
     (async () => {
       if (!token()) return;
       try {
-        const d = await jfetch(api("/admin/perfil"), { headers: hdrs() });
-        const i = d.institucion || d.data || {};
-        setInst(i.nombre_institucion ?? i.nombreInstitucion ?? "—");
+        await jfetch(api("/admin/perfil"), { headers: hdrs() });
+        // eliminado: valor no utilizado
       } catch {
-        setInst("—");
+        // noop
       }
     })();
   }, []);
@@ -256,18 +196,30 @@ const Estudiantes: React.FC = () => {
       if (jornada) qs.set("jornada", jornada);
       if (q) qs.set("q", q);
       qs.set("_ts", String(Date.now()));
+      console.log("Cargando estudiantes desde:", api(`/admin/estudiantes?${qs.toString()}`));
       const d = await jfetch(api(`/admin/estudiantes?${qs.toString()}`), {
         headers: { ...hdrs(), "Cache-Control": "no-cache" },
       });
+      console.log("Respuesta del servidor:", d);
       setRows((Array.isArray(d) ? d : []).map(normRow));
       setPage(1);
     } catch (e: any) {
+      console.error("Error al cargar estudiantes:", e);
       say(e.message || "No se pudo cargar", "err");
     } finally {
       setLoading(false);
     }
   };
-  useEffect(() => { if (token()) listar(); }, []);
+  
+  useEffect(() => { 
+    if (token()) listar(); 
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  
+  useEffect(() => {
+    if (token()) listar();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [grado, curso, jornada]);
 
   const onCrear = async (ev: React.FormEvent) => {
     ev.preventDefault();
@@ -278,6 +230,7 @@ const Estudiantes: React.FC = () => {
         body: JSON.stringify({
           ...form,
           correo: form.correo?.trim() || null,
+          direccion: form.direccion?.trim() || null,
           grado: form.grado || null,
           curso: form.curso || null,
           jornada: form.jornada || null,
@@ -285,7 +238,7 @@ const Estudiantes: React.FC = () => {
       });
       say("Estudiante registrado.", "ok");
       setCrear(false);
-      setForm({ nombre: "", apellido: "", tipo_documento: "", numero_documento: "", grado: "", curso: "", jornada: "", correo: "" });
+      setForm({ nombre: "", apellido: "", tipo_documento: "", numero_documento: "", grado: "", curso: "", jornada: "", correo: "", direccion: "" });
       await listar();
     } catch (e: any) {
       say(e.message || "Error al registrar", "err");
@@ -303,6 +256,7 @@ const Estudiantes: React.FC = () => {
           nombre: (edit.nombre || "").trim(),
           apellido: (edit.apellido || "").trim(),
           correo: (edit.correo || "").trim(),
+          direccion: (edit.direccion || "").trim(),
           grado: edit.grado === "" ? undefined : edit.grado,
           curso: edit.curso,
           jornada: edit.jornada,
@@ -318,78 +272,68 @@ const Estudiantes: React.FC = () => {
     }
   };
 
-  /* Activar/Inactivar → manda las TRES variantes para que el backend no la ignore */
+  /* Activar/Inactivar */
   const reactivar = async (e: Estudiante) => {
     const id = e.id_usuario;
-    setRows((rs) => rs.map((r) => (r.id_usuario === id ? { ...r, is_active: true } : r))); // Actualiza localmente
+    setRows((rs) => rs.map((r) => (r.id_usuario === id ? { ...r, is_active: true } : r)));
     try {
-      // Aquí debes mandar el campo is_active al backend para activarlo
       await jfetch(api(`/admin/estudiantes/${id}`), {
         method: "PUT",
         headers: { "Content-Type": "application/json", ...hdrs() },
-        body: JSON.stringify({ is_active: true })  // Asegúrate de mandar is_active
+        body: JSON.stringify({ is_active: true })
       });
       say("Estudiante reactivado.", "ok");
-      await listar(); // Cargar los datos actualizados
+      await listar();
     } catch (err: any) {
-      setRows((rs) => rs.map((r) => (r.id_usuario === id ? { ...r, is_active: false } : r))); // Si hay error, revertir el cambio
+      setRows((rs) => rs.map((r) => (r.id_usuario === id ? { ...r, is_active: false } : r)));
       say(err.message || "Error al reactivar", "err");
     }
   };
 
-const pedirInactivar = (e: Estudiante) => setConfirm({ t: "inactivar", e });
-const confirmarInactivar = async () => {
-  if (!confirm?.e) return;
-  const id = confirm.e.id_usuario;
-  setRows((rs) => rs.map((r) => (r.id_usuario === id ? { ...r, is_active: false } : r)));  // Actualiza localmente
-  try {
-    const response = await jfetch(api(`/admin/estudiantes/${id}`), {
-      method: "PUT",
-      headers: { "Content-Type": "application/json", ...hdrs() },
-      body: JSON.stringify({ is_active: false }),  // Asegúrate de enviar is_active
-    });
-    say("Estudiante inactivado.", "ok");
-    setConfirm(null);
-    await listar();  // Recargar datos
-  } catch (e: any) {
-    setRows((rs) => rs.map((r) => (r.id_usuario === id ? { ...r, is_active: true } : r)));  // Revertir si falla
-    say(e.message || "Error al inactivar", "err");
-  }
-};
+  const confirmarInactivar = async () => {
+    if (!confirm?.e) return;
+    const id = confirm.e.id_usuario;
+    setRows((rs) => rs.map((r) => (r.id_usuario === id ? { ...r, is_active: false } : r)));
+    try {
+      await jfetch(api(`/admin/estudiantes/${id}`), {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", ...hdrs() },
+        body: JSON.stringify({ is_active: false }),
+      });
+      say("Estudiante inactivado.", "ok");
+      setConfirm(null);
+      await listar();
+    } catch (e: any) {
+      setRows((rs) => rs.map((r) => (r.id_usuario === id ? { ...r, is_active: true } : r)));
+      say(e.message || "Error al inactivar", "err");
+    }
+  };
 
-
-
- const pedirEliminar = (e: Estudiante) => setConfirm({ t: "eliminar", e });
-const confirmarEliminar = async () => {
+  const pedirEliminar = (e: Estudiante) => setConfirm({ t: "eliminar", e });
+  const confirmarEliminar = async () => {
     if (!confirm?.e) return;
     const id = confirm.e.id_usuario;
     try {
-      // Enviar la solicitud DELETE al backend
       const r = await fetch(api(`/admin/estudiantes/${id}`), {
         method: "DELETE", headers: hdrs()
       });
       if (r.status === 409) {
-        // Si no se puede eliminar porque el estudiante tiene historial
         const j = await r.json().catch(() => ({}));
         say(j?.error || "Tiene historial; solo puede inactivarse.", "info");
       } else if (!r.ok) {
-        // Si la respuesta no es correcta
         const j = await r.json().catch(() => ({}));
         throw new Error(j.error || j.detalle || "No se pudo eliminar");
       } else {
         say("Estudiante eliminado.", "ok");
-        await listar(); // Recargar datos después de eliminar
+        await listar();
       }
     } catch (e: any) {
       say(e.message || "Error al eliminar", "err");
     } finally {
-      setConfirm(null); // Cerrar el modal de confirmación
+      setConfirm(null);
     }
-};
+  };
 
-
-  /* Importar */
-  const abrirArchivo = () => fileRef.current?.click();
   const importar = async (file: File) => {
     const A = api("/admin/estudiantes/importar"), B = api("/admin/estudiantes/import");
     const up = async (u: string) => {
@@ -397,15 +341,34 @@ const confirmarEliminar = async () => {
       ["estudiantes", "file", "archivo"].forEach((k) => fd.append(k, file));
       return fetch(u, { method: "POST", headers: hdrs(), body: fd });
     };
+    const showAlerts = (obj: any) => {
+      const insertados = Number(obj?.insertados ?? obj?.creados ?? 0);
+      const actualizados = Number(obj?.actualizados ?? 0);
+      const duplicados = Number(obj?.duplicados_en_archivo ?? obj?.duplicados ?? 0);
+      const omitidosExist = Number(obj?.omitidos_por_existir ?? 0);
+      const omitidosOtrasInst = Number(obj?.omitidos_por_otras_instituciones ?? 0);
+      const conflictos = Array.isArray(obj?.documentos_en_otras_instituciones) ? obj.documentos_en_otras_instituciones.length : omitidosOtrasInst;
+      const total = Number(obj?.total_leidos ?? 0);
+      // Alertas separadas por categoría
+      if (insertados > 0) say(`Importado: ${insertados} creados`, 'ok');
+      if (actualizados > 0) say(`${actualizados} actualizados`, 'ok');
+      if (duplicados > 0) say(`${duplicados} duplicados en el archivo`, 'info');
+      if (omitidosExist > 0) say(`${omitidosExist} ya existían en la institución`, 'info');
+      if (conflictos > 0) say(`${conflictos} pertenecen a otra institución`, 'info');
+      if (insertados + actualizados === 0 && duplicados + omitidosExist + conflictos === 0) {
+        const tips = total ? ` (leídos: ${total})` : '';
+        say(`No se realizaron cambios${tips}. Revisa encabezados y formato.`, 'info');
+      }
+      // Resumen final
+      const resumen = `Importado: ${insertados} nuevos, ${actualizados} act.${total ? ` (leídos: ${total})` : ''}`;
+      say(resumen, insertados + actualizados > 0 ? 'ok' : 'info');
+    };
     try {
       let r = await up(A);
       if (r.status === 404) r = await up(B);
       if (r.ok) {
         const d = await r.json().catch(() => ({}));
-        say(
-          `Importado: ${d.insertados ?? 0} nuevos, ${d.actualizados ?? 0} act., ${d.omitidos_por_existir ?? 0} omitidos, ${d.duplicados_en_archivo ?? 0} duplicados.`,
-          "ok"
-        );
+        showAlerts(d);
         setImpOpen(false);
         await listar();
         return;
@@ -454,10 +417,7 @@ const confirmarEliminar = async () => {
       } else if (!rj.ok) {
         return say(d2.error || d2.detalle || "Error al importar", "err");
       }
-      say(
-        `Importado: ${d2.insertados ?? 0} nuevos, ${d2.actualizados ?? 0} act., ${d2.omitidos_por_existir ?? 0} omitidos, ${d2.duplicados_en_archivo ?? 0} duplicados.`,
-        "ok"
-      );
+      showAlerts(d2);
       setImpOpen(false);
       await listar();
     } catch (e: any) {
@@ -466,218 +426,222 @@ const confirmarEliminar = async () => {
   };
 
   /* búsqueda + paginación */
-  const filtrados = useMemo(
-    () => (q ? rows.filter((e) => starts(e.nombre, q) || starts(e.apellido, q)) : rows),
-    [rows, q]
-  );
+  const filtrados = useMemo(() => {
+    let data = rows;
+    // Filtrar por búsqueda
+    if (q) data = data.filter((e) => starts(e.nombre, q) || starts(e.apellido, q));
+    // Filtrar por estado de actividad
+    if (filterActivo === "activos") data = data.filter(e => e.is_active);
+    else if (filterActivo === "inactivos") data = data.filter(e => !e.is_active);
+    return data;
+  }, [rows, q, filterActivo]);
+  const stats = useMemo(() => {
+    const total = rows.length;
+    const activos = rows.filter(e => e.is_active).length;
+    const inactivos = rows.filter(e => !e.is_active).length;
+    return { total, activos, inactivos };
+  }, [rows]);
+  
+  // Paginación
   const totalPages = Math.max(1, Math.ceil(filtrados.length / pageSize));
   const current = Math.min(page, totalPages);
-  const slice = filtrados.slice((current - 1) * pageSize, (current - 1) * pageSize + pageSize);
-  useEffect(() => { if (page > totalPages) setPage(totalPages); }, [totalPages, page]);
+  const startIndex = (current - 1) * pageSize;
+  const paginatedData = filtrados.slice(startIndex, startIndex + pageSize);
+  
+  useEffect(() => {
+    if (page > totalPages && totalPages > 0) setPage(1);
+  }, [totalPages, page]);
 
   return (
-    <div className="bg-white rounded-xl shadow-lg p-6">
-      {toast && <Toast text={toast.text} type={toast.type} onClose={() => setToast(null)} />}
-
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">Gestión de Estudiantes</h1>
-        <div className="text-sm text-gray-500">
-          Total: <span className="font-semibold text-blue-600">{loading ? "…" : filtrados.length}</span> estudiantes
+    <div className="space-y-6">
+      {toast && (
+        <div className="fixed top-4 right-4 z-50 bg-white border border-gray-300 rounded-lg px-4 py-3 shadow-lg flex items-center gap-2">
+          <span>{toast.text}</span>
+          <button onClick={() => setToast(null)} className="text-gray-400 hover:text-gray-600"><FaTimes /></button>
         </div>
+      )}
+
+      {/* Search and Actions */}
+      <div className="flex gap-3">
+        <div className="flex-1 flex border border-gray-300 rounded-lg overflow-hidden">
+          <input
+            value={q}
+            onChange={(e) => { setQ(e.target.value); setPage(1); }}
+            placeholder="Buscar por nombre o apellido..."
+            className="px-4 py-2 flex-1 outline-none text-sm"
+          />
+          <button
+            onClick={() => { setPage(1); listar(); }}
+            className="px-4 py-2 bg-blue-600 text-white hover:bg-blue-700 flex items-center gap-2"
+          >
+            <FaSearch className="text-sm" />
+            <span className="text-sm">Buscar</span>
+          </button>
+        </div>
+        <button className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2" onClick={() => setCrear(true)}>
+          <FaPlus className="text-sm" />
+          <span className="text-sm">Nuevo Estudiante</span>
+        </button>
+        <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2" onClick={() => setImpOpen(true)}>
+          <FaFileUpload className="text-sm" />
+          <span className="text-sm">Importar CSV</span>
+        </button>
       </div>
 
-      <div className="flex flex-wrap items-center gap-3 mb-5">
-        <div className="flex-1 min-w-[260px]">
-          <div className="flex border border-gray-300 rounded-xl overflow-hidden shadow-sm">
-            <input
-              value={q}
-              onChange={(e) => { setQ(e.target.value); setPage(1); }}
-              placeholder="Buscar por nombre o apellido..."
-              className="px-4 py-2 w-full outline-none text-sm"
-            />
-            <button
-              onClick={() => { setPage(1); listar(); }}
-              className="flex items-center gap-2 px-4 text-white bg-blue-600 hover:bg-blue-700"
-            >
-              <FaSearch className="text-sm" />
-              <span className="text-sm font-medium">Buscar</span>
-            </button>
-          </div>
-        </div>
-        <button className="flex items-center gap-2 px-4 py-2 rounded-xl bg-green-600 hover:bg-green-700 text-white text-sm" onClick={() => setCrear(true)}>
-          <FaPlus className="text-sm" /> Nuevo Estudiante
-        </button>
-        <button className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm" onClick={() => setImpOpen(true)}>
-          <FaFileUpload className="text-sm" /> Importar CSV
-        </button>
-      </div>
-
-      <div className="rounded-xl border border-gray-200 bg-white mb-6 shadow-sm">
+      {/* Filters */}
+      <div className="bg-white border border-gray-200 rounded-lg shadow-sm">
         <div className="px-5 py-4 border-b"><span className="text-sm text-gray-700 font-medium">Filtros</span></div>
-        <div className="px-5 py-4 grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
-            <label className="block text-sm text-gray-600 mb-1">Grado</label>
-            <NiceSelect className="w-full" value={grado} onChange={setGrado}
-              options={[{ value: "", label: "Todos los grados" }, { value: "10", label: "10°" }, { value: "11", label: "11°" }]} />
-          </div>
-          <div>
-            <label className="block text-sm text-gray-600 mb-1">Curso</label>
-            <NiceSelect className="w-full" value={curso} onChange={setCurso}
-              options={[{ value: "", label: "Todos los cursos" }, { value: "A", label: "A" }, { value: "B", label: "B" }, { value: "C", label: "C" }]} />
-          </div>
-          <div>
-            <label className="block text-sm text-gray-600 mb-1">Jornada</label>
-            <NiceSelect className="w-full" value={jornada} onChange={setJornada}
-              options={[{ value: "", label: "Todas las jornadas" }, { value: "mañana", label: "Mañana" }, { value: "tarde", label: "Tarde" }]} />
-          </div>
+        <div className="px-5 py-4 grid grid-cols-3 gap-4">
+          <NiceSelect className="w-full" value={grado} onChange={setGrado}
+            options={[{ value: "", label: "Todos los grados" }, { value: "10", label: "10°" }, { value: "11", label: "11°" }]} />
+          <NiceSelect className="w-full" value={curso} onChange={setCurso}
+            options={[{ value: "", label: "Todos los cursos" }, { value: "A", label: "A" }, { value: "B", label: "B" }, { value: "C", label: "C" }]} />
+          <NiceSelect className="w-full" value={jornada} onChange={setJornada}
+            options={[{ value: "", label: "Todas las jornadas" }, { value: "mañana", label: "Mañana" }, { value: "tarde", label: "Tarde" }]} />
         </div>
       </div>
 
-      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+      {/* Stats Cards */}
+      <div className="grid grid-cols-3 gap-4">
+        <div 
+          className={`rounded-lg border p-4 cursor-pointer transition ${filterActivo === "todos" ? "bg-blue-50 border-blue-300" : "bg-white border-gray-200"}`}
+          onClick={() => { setFilterActivo("todos"); setPage(1); }}
+        >
+          <div className="text-3xl font-bold text-blue-600">{stats.total}</div>
+          <div className="text-sm text-gray-600 mt-1">Total Estudiantes</div>
+        </div>
+        <div 
+          className={`rounded-lg border p-4 cursor-pointer transition ${filterActivo === "activos" ? "bg-green-50 border-green-300" : "bg-white border-gray-200"}`}
+          onClick={() => { setFilterActivo("activos"); setPage(1); }}
+        >
+          <div className="text-3xl font-bold text-green-600">{stats.activos}</div>
+          <div className="text-sm text-gray-600 mt-1">Activos</div>
+        </div>
+        <div 
+          className={`rounded-lg border p-4 cursor-pointer transition ${filterActivo === "inactivos" ? "bg-red-50 border-red-300" : "bg-white border-gray-200"}`}
+          onClick={() => { setFilterActivo("inactivos"); setPage(1); }}
+        >
+          <div className="text-3xl font-bold text-red-600">{stats.inactivos}</div>
+          <div className="text-sm text-gray-600 mt-1">Inactivos</div>
+        </div>
+      </div>
+
+      {/* Table */}
+      <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
         {loading ? (
           <div className="text-center py-12 text-gray-500">Cargando…</div>
         ) : filtrados.length === 0 ? (
           <div className="text-center py-12">
-            <FaGraduationCap className="mx-auto text-gray-400 text-4xl mb-4" />
             <h3 className="text-lg font-medium text-gray-600 mb-2">No hay estudiantes</h3>
             <p className="text-gray-500 text-sm">Agrega uno nuevo o importa desde un archivo</p>
           </div>
         ) : (
-          <>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50 border-b border-gray-200">
-                  <tr>
-                    {["Nombre","Apellido","Documento","Curso","Jornada","Correo","Estado","Acciones"].map((h) => (
-                      <th key={h} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{h}</th>
-                    ))}
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estudiante</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Grado/Curso</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Jornada</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Última Actividad</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Acciones</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {paginatedData.map((e) => (
+                  <tr key={e.id_usuario} className="hover:bg-gray-50">
+                    <td className="px-4 py-4">
+                      <div>
+                        <div className="font-medium text-gray-900">{e.nombre} {e.apellido}</div>
+                        <div className="text-xs text-gray-500">{e.correo || "—"}</div>
+                        <div className="text-xs text-gray-500">{e.tipo_documento} {e.numero_documento}</div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-4 text-sm text-gray-900">{e.grado || "—"}° {e.curso || ""}</td>
+                    <td className="px-4 py-4 text-sm text-gray-900">{e.jornada || "—"}</td>
+                    <td className="px-4 py-4">
+                      <div className="flex items-center gap-2">
+                        {e.is_active ? (
+                          <FaCheckCircle className="text-green-600" />
+                        ) : (
+                          <FaTimesCircle className="text-red-600" />
+                        )}
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          e.is_active ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
+                        }`}>
+                          {e.is_active ? "Activo" : "Inactivo"}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-4 text-sm text-gray-500">
+                      {e.ultima_actividad ? new Date(e.ultima_actividad).toLocaleDateString() : "—"}
+                    </td>
+                    <td className="px-4 py-4">
+                      <div className="flex gap-2">
+                        <button className="text-blue-600 hover:text-blue-900" onClick={() => abrirEditar(e)}>
+                          <FaEdit size={16} />
+                        </button>
+                        <button
+                          className={`${e.is_active ? 'text-green-600 hover:text-green-900' : 'text-red-600 hover:text-red-900'}`}
+                          onClick={() => (e.is_active ? setConfirm({ t: "inactivar", e }) : reactivar(e))}
+                          title={e.is_active ? 'Inactivar' : 'Reactivar'}
+                        >
+                          <FaToggleOn size={20} />
+                        </button>
+                        <button className="text-red-600 hover:text-red-900" onClick={() => pedirEliminar(e)}>
+                          <FaTrash size={16} />
+                        </button>
+                      </div>
+                    </td>
                   </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {slice.map((e) => (
-                    <tr key={e.id_usuario} className="hover:bg-gray-50">
-                      <td className="px-4 py-4">
-                        <div className="flex items-center">
-                          <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center mr-3">
-                            <span className="text-sm font-medium text-blue-600">{initials(e)}</span>
-                          </div>
-                          <div className="text-sm font-medium text-gray-900">{e.nombre || "—"}</div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-4 text-sm text-gray-900">{e.apellido || "—"}</td>
-                      <td className="px-4 py-4 text-sm text-gray-700">
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                          {e.tipo_documento} {e.numero_documento}
-                        </span>
-                      </td>
-                      <td className="px-4 py-4 text-sm text-gray-600">
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                          {e.grado || "—"}{e.grado ? "°" : ""} {e.curso || ""}
-                        </span>
-                      </td>
-                      <td className="px-4 py-4 text-sm text-gray-600">{e.jornada || "—"}</td>
-                      <td className="px-4 py-4 text-sm text-gray-600">{e.correo || "—"}</td>
-                      <td className="px-4 py-4 text-sm">
-                        <div className="flex flex-col items-center gap-1">
-                          <button
-                            title={e.is_active ? "Inactivar" : "Activar"}
-                            onClick={() => (e.is_active ? setConfirm({ t: "inactivar", e }) : reactivar(e))}
-                            className={e.is_active ? "text-green-600 hover:text-green-700" : "text-red-600 hover:text-red-700"}
-                          >
-                            {e.is_active ? <FaToggleOn size={22} /> : <FaToggleOff size={22} />}
-                          </button>
-                          <span
-                            className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${
-                              e.is_active ? "bg-green-100 text-green-800" : "bg-red-100 text-red-700"
-                            }`}
-                          >
-                            {e.is_active ? "Activo" : "Inactivo"}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-4 text-sm">
-                        <div className="flex gap-2">
-                          <button className="text-blue-600 hover:text-blue-900 p-1" title="Editar" onClick={() => abrirEditar(e)}>
-                            <FaEdit size={14} />
-                          </button>
-                          <button className="text-red-600 hover:text-red-900 p-1" title="Eliminar" onClick={() => pedirEliminar(e)}>
-                            <FaTrash size={14} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="flex items-center justify-between px-4 py-3 border-t bg-gray-50">
-              <div className="flex items-center gap-1">
-                <button
-                  className="px-3 py-1 rounded border text-sm disabled:opacity-40"
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  disabled={current === 1}
-                >
-                  Anterior
-                </button>
-                {(() => {
-                  const total = totalPages;
-                  if (total <= 7)
-                    return Array.from({ length: total }, (_, i) => i + 1).map((p, i) => (
-                      <button
-                        key={i}
-                        onClick={() => setPage(p)}
-                        className={`px-3 py-1 rounded border text-sm ${
-                          p === current ? "bg-blue-600 text-white border-blue-600" : "hover:bg-gray-100"
-                        }`}
-                      >
-                        {p}
-                      </button>
-                    ));
-                  const out: (number | string)[] = [1],
-                    l = Math.max(2, current - 1),
-                    r = Math.min(total - 1, current + 1);
-                  if (l > 2) out.push("…");
-                  for (let p = l; p <= r; p++) out.push(p);
-                  if (r < total - 1) out.push("…");
-                  out.push(total);
-                  return out.map((p, i) =>
-                    typeof p === "number" ? (
-                      <button
-                        key={i}
-                        onClick={() => setPage(p)}
-                        className={`px-3 py-1 rounded border text-sm ${
-                          p === current ? "bg-blue-600 text-white border-blue-600" : "hover:bg-gray-100"
-                        }`}
-                      >
-                        {p}
-                      </button>
-                    ) : (
-                      <span key={i} className="px-2 text-gray-500 select-none">…</span>
-                    )
-                  );
-                })()}
-                <button
-                  className="px-3 py-1 rounded border text-sm disabled:opacity-40"
-                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={current === totalPages}
-                >
-                  Siguiente
-                </button>
-              </div>
-            </div>
-          </>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
+      
+      {/* Paginación */}
+      {filtrados.length > 0 && (
+        <div className="flex items-center justify-between px-4 py-3 border-t">
+          <div></div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              disabled={current === 1}
+              className="px-3 py-1 rounded border text-sm disabled:opacity-40 hover:bg-gray-50"
+            >
+              Anterior
+            </button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+              <button
+                key={p}
+                onClick={() => setPage(p)}
+                className={`px-3 py-1 rounded border text-sm ${
+                  p === current ? "bg-blue-600 text-white border-blue-600" : "hover:bg-gray-50"
+                }`}
+              >
+                {p}
+              </button>
+            ))}
+            <button
+              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+              disabled={current === totalPages}
+              className="px-3 py-1 rounded border text-sm disabled:opacity-40 hover:bg-gray-50"
+            >
+              Siguiente
+            </button>
+          </div>
+        </div>
+      )}
 
+      {/* Modales */}
       {crear && (
         <div className="fixed inset-0 bg-black/40 grid place-items-center z-50">
           <div className="bg-white rounded-lg shadow-lg w-full max-w-lg p-6">
             <div className="flex justify-between items-center border-b pb-3 mb-4">
-              <div className="flex items-center gap-2">
-                <FaGraduationCap className="text-blue-600" />
-                <h2 className="text-xl font-semibold">Registrar Nuevo Estudiante</h2>
-              </div>
+              <h2 className="text-xl font-semibold">Registrar Nuevo Estudiante</h2>
               <button className="text-gray-400 hover:text-gray-600" onClick={() => setCrear(false)}>✕</button>
             </div>
             <form onSubmit={onCrear} className="space-y-4">
@@ -698,14 +662,15 @@ const confirmarEliminar = async () => {
                 <NiceSelect className="w-full" value={form.jornada} onChange={(v) => setForm({ ...form, jornada: v })}
                   options={[{ value: "", label: "Jornada" }, { value: "mañana", label: "Mañana" }, { value: "tarde", label: "Tarde" }]} />
               </div>
+              <input value={form.direccion} onChange={(e) => setForm({ ...form, direccion: e.target.value })} placeholder="Dirección" className="w-full border border-gray-300 rounded-lg p-3" />
               <input type="email" value={form.correo} onChange={(e) => setForm({ ...form, correo: e.target.value })} placeholder="Correo electrónico" className="w-full border border-gray-300 rounded-lg p-3" required />
-              <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Institución</label>
-                <p className="text-gray-600">{inst}</p>
+              <div>
+                <div className="text-xs text-gray-600 mb-1">Institución</div>
+                <input value={instName} readOnly className="w-full border border-gray-300 rounded-lg p-3 bg-gray-50 text-gray-700" />
               </div>
               <div className="flex justify-end gap-3 mt-6 pt-4 border-t">
                 <button type="button" className="px-4 py-2 border rounded-lg hover:bg-gray-50" onClick={() => setCrear(false)}>Cancelar</button>
-                <button type="submit" className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"><FaPlus size={14} /> Registrar</button>
+                <button type="submit" className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Registrar</button>
               </div>
             </form>
           </div>
@@ -716,46 +681,34 @@ const confirmarEliminar = async () => {
         <div className="fixed inset-0 bg-black/40 grid place-items-center z-50">
           <div className="bg-white rounded-lg shadow-lg w-full max-w-lg p-6">
             <div className="flex justify-between items-center border-b pb-3 mb-3">
-              <div className="flex items-center gap-2">
-                <FaEdit className="text-blue-600" />
-                <h2 className="text-xl font-semibold">Editar Estudiante</h2>
-              </div>
+              <h2 className="text-xl font-semibold">Editar Estudiante</h2>
               <button className="text-gray-400 hover:text-gray-600" onClick={() => setEditOpen(false)}>✕</button>
             </div>
-            {editMsg && (
-              <div className="mb-3 p-2 rounded border border-red-200 bg-red-50 text-red-700 text-sm">{editMsg}</div>
-            )}
+            {editMsg && <div className="mb-3 p-2 rounded border border-red-200 bg-red-50 text-red-700 text-sm">{editMsg}</div>}
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <input value={edit.nombre || ""} onChange={(e) => setEdit({ ...edit, nombre: e.target.value })} placeholder="Nombre" className="w-full border border-gray-300 rounded-lg p-3" />
                 <input value={edit.apellido || ""} onChange={(e) => setEdit({ ...edit, apellido: e.target.value })} placeholder="Apellido" className="w-full border border-gray-300 rounded-lg p-3" />
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <select value={edit.tipo_documento || ""} onChange={(e) => setEdit({ ...edit, tipo_documento: e.target.value })}
-                  className="w-full border border-gray-300 rounded-lg p-3 bg-white focus:ring-2 focus:ring-blue-500">
-                  <option value="">Tipo de Documento</option>
-                  <option value="TI">Tarjeta de identidad</option>
-                  <option value="CC">Cédula de Ciudadanía</option>
-                  <option value="CE">Cédula de Extranjería</option>
-                </select>
-                <input value={edit.numero_documento || ""} onChange={(e) => setEdit({ ...edit, numero_documento: e.target.value })}
-                  placeholder="Número de documento" className="w-full border border-gray-300 rounded-lg p-3" />
+                <NiceSelect className="w-full" value={edit.tipo_documento || ""} onChange={(v) => setEdit({ ...edit, tipo_documento: v })}
+                  options={[{ value: "", label: "Tipo de Documento" }, { value: "TI", label: "Tarjeta de Identidad" }, { value: "CC", label: "Cédula de Ciudadanía" }, { value: "CE", label: "Cédula de Extranjería" }]} />
+                <input value={edit.numero_documento || ""} onChange={(e) => setEdit({ ...edit, numero_documento: e.target.value })} placeholder="Número de documento" className="w-full border border-gray-300 rounded-lg p-3" />
               </div>
+              <input value={edit.correo || ""} onChange={(e) => setEdit({ ...edit, correo: e.target.value })} placeholder="Correo electrónico" className="w-full border border-gray-300 rounded-lg p-3" />
+              <input value={edit.direccion || ""} onChange={(e) => setEdit({ ...edit, direccion: e.target.value })} placeholder="Dirección" className="w-full border border-gray-300 rounded-lg p-3" />
               <div className="grid grid-cols-3 gap-4">
-                <input value={(edit.grado as any) ?? ""} onChange={(e) => setEdit({ ...edit, grado: e.target.value })} placeholder="Grado (10/11)" className="w-full border border-gray-300 rounded-lg p-3" />
-                <input value={edit.curso || ""} onChange={(e) => setEdit({ ...edit, curso: e.target.value })} placeholder="Curso (A/B/C)" className="w-full border border-gray-300 rounded-lg p-3" />
-                <select value={edit.jornada || ""} onChange={(e) => setEdit({ ...edit, jornada: e.target.value })}
-                  className="w-full border border-gray-300 rounded-lg p-3 bg-white focus:ring-2 focus:ring-blue-500">
-                  <option value="">Jornada</option>
-                  <option value="mañana">Mañana</option>
-                  <option value="tarde">Tarde</option>
-                </select>
+                <NiceSelect className="w-full" value={(edit.grado as any) ?? ""} onChange={(v) => setEdit({ ...edit, grado: v })}
+                  options={[{ value: "", label: "Grado" }, { value: "10", label: "Décimo (10°)" }, { value: "11", label: "Undécimo (11°)" }]} />
+                <NiceSelect className="w-full" value={edit.curso || ""} onChange={(v) => setEdit({ ...edit, curso: v })}
+                  options={[{ value: "", label: "Curso" }, { value: "A", label: "A" }, { value: "B", label: "B" }, { value: "C", label: "C" }]} />
+                <NiceSelect className="w-full" value={edit.jornada || ""} onChange={(v) => setEdit({ ...edit, jornada: v })}
+                  options={[{ value: "", label: "Jornada" }, { value: "mañana", label: "Mañana" }, { value: "tarde", label: "Tarde" }]} />
               </div>
-              <input value={edit.correo || ""} onChange={(e) => setEdit({ ...edit, correo: e.target.value })} placeholder="Correo" className="w-full border border-gray-300 rounded-lg p-3" />
             </div>
             <div className="flex justify-end gap-3 mt-6 pt-4 border-t">
               <button className="px-4 py-2 border rounded-lg hover:bg-gray-50" onClick={() => setEditOpen(false)}>Cancelar</button>
-              <button className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700" onClick={guardarEditar}>Guardar cambios</button>
+              <button className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700" onClick={guardarEditar}>Guardar</button>
             </div>
           </div>
         </div>
@@ -763,48 +716,57 @@ const confirmarEliminar = async () => {
 
       {impOpen && (
         <div className="fixed inset-0 bg-black/40 grid place-items-center z-[60]">
-          <div className="bg-white w-full max-w-xl rounded-2xl shadow-2xl p-6">
-            <div className="flex items-center justify-between mb-2">
+          <div className="bg-white w-full max-w-2xl rounded-xl shadow-xl">
+            <div className="flex items-center justify-between px-6 py-4 border-b">
               <h3 className="text-lg font-semibold text-gray-800">Importar Estudiantes</h3>
-              <button className="p-2 rounded hover:bg-gray-100 text-gray-500" onClick={() => setImpOpen(false)} aria-label="Cerrar">
+              <button className="p-2 rounded hover:bg-gray-100 text-gray-500" onClick={() => setImpOpen(false)}>
                 <FaTimes />
               </button>
             </div>
-            <p className="text-sm text-gray-600 mb-4">Sube un archivo CSV o Excel con los datos de los estudiantes</p>
-            <div
-              className={`rounded-xl border-2 border-dashed ${drag ? "border-blue-500 bg-blue-50" : "border-gray-300"} flex flex-col items-center justify-center py-10 mb-1 transition`}
-              onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
-              onDragLeave={() => setDrag(false)}
-              onDrop={(e) => { e.preventDefault(); setDrag(false); const f = e.dataTransfer.files?.[0]; if (f) importar(f); }}
-            >
-              <FaUpload className="text-3xl text-gray-400 mb-3" />
-              <button className="text-blue-600 hover:text-blue-700 font-medium" onClick={abrirArchivo}>Seleccionar archivo</button>
-              <p className="text-xs text-gray-500 mt-1">CSV o Excel</p>
-              <input ref={fileRef} type="file" hidden accept=".csv,.xlsx,.xls"
-                onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) importar(f); }} />
+            <div className="px-6 pt-3 pb-6">
+              <p className="text-sm text-gray-600 mb-4">Sube un archivo CSV o Excel con los datos de los estudiantes</p>
+              <div
+                className={`rounded-xl border-2 border-dashed ${drag ? "border-blue-500 bg-blue-50" : "border-gray-300"} flex flex-col items-center justify-center py-12 text-center`}
+                onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
+                onDragLeave={() => setDrag(false)}
+                onDrop={(e) => { e.preventDefault(); setDrag(false); const f = e.dataTransfer.files?.[0]; if (f) importar(f); }}
+              >
+                <FaFileUpload className="text-4xl text-gray-400 mb-3" />
+                <button className="text-blue-600 hover:text-blue-700 font-semibold" onClick={() => fileRef.current?.click()}>Seleccionar archivo</button>
+                <div className="text-xs text-gray-500 mt-1">CSV o Excel</div>
+                <input ref={fileRef} type="file" hidden accept=".csv,.xlsx,.xls"
+                  onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) importar(f); }} />
+              </div>
             </div>
           </div>
         </div>
       )}
 
-      <Confirm
-        open={!!confirm && confirm.t === "inactivar"}
-        title="Inactivar estudiante"
-        message={<>¿Estás seguro de <b>inactivar</b> a este estudiante?<br />Podrás reactivarlo desde este mismo panel.</>}
-        confirmText="Sí, inactivar"
-        confirmColor="red"
-        onConfirm={confirmarInactivar}
-        onClose={() => setConfirm(null)}
-      />
-      <Confirm
-        open={!!confirm && confirm.t === "eliminar"}
-        title="Eliminar estudiante"
-        message={<>¿Eliminar definitivamente a este estudiante?<br /><span className="text-gray-500">Si tiene historial, el sistema lo impedirá y deberás inactivarlo.</span></>}
-        confirmText="Sí, eliminar"
-        confirmColor="red"
-        onConfirm={confirmarEliminar}
-        onClose={() => setConfirm(null)}
-      />
+      {confirm && confirm.t === "inactivar" && (
+        <div className="fixed inset-0 bg-black/40 grid place-items-center z-50">
+          <div className="bg-white rounded-lg shadow-lg w-full max-w-md p-6">
+            <h3 className="text-lg font-semibold mb-2">Inactivar Estudiante</h3>
+            <p className="text-gray-600 mb-4">¿Estás seguro de inactivar a este estudiante?</p>
+            <div className="flex justify-end gap-3">
+              <button className="px-4 py-2 border rounded-lg hover:bg-gray-50" onClick={() => setConfirm(null)}>Cancelar</button>
+              <button className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700" onClick={confirmarInactivar}>Confirmar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {confirm && confirm.t === "eliminar" && (
+        <div className="fixed inset-0 bg-black/40 grid place-items-center z-50">
+          <div className="bg-white rounded-lg shadow-lg w-full max-w-md p-6">
+            <h3 className="text-lg font-semibold mb-2">Eliminar Estudiante</h3>
+            <p className="text-gray-600 mb-4">¿Eliminar definitivamente a este estudiante?</p>
+            <div className="flex justify-end gap-3">
+              <button className="px-4 py-2 border rounded-lg hover:bg-gray-50" onClick={() => setConfirm(null)}>Cancelar</button>
+              <button className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700" onClick={confirmarEliminar}>Confirmar</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
