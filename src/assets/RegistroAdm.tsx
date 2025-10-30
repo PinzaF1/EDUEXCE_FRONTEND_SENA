@@ -167,7 +167,7 @@ const RegistroAdm: React.FC = () => {
 
     setCargando(true)
     try {
-      const res = await fetch('https://overvaliantly-discourseless-delilah.ngrok-free.dev/instituciones/registro', {
+      const res = await fetch('https://gillian-semiluminous-blubberingly.ngrok-free.dev/instituciones/registro', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),

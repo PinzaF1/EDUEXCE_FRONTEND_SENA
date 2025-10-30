@@ -1,5 +1,5 @@
 // src/assets/Notificaciones.tsx
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import {
   FaBell,
   FaRegClock,
@@ -7,6 +7,11 @@ import {
   FaChartLine,
   FaSearch,
 } from "react-icons/fa";
+
+const RAW_BASE =
+  (import.meta as any).env?.VITE_API_URL ||
+  "https://gillian-semiluminous-blubberingly.ngrok-free.dev/";
+const API_BASE = RAW_BASE.replace(/\/+$/, "");
 
 /* ===================== Tipos ===================== */
 type TipoNoti = "inactividad" | "puntaje_bajo" | "progreso_lento";
@@ -55,6 +60,54 @@ const Notificaciones: React.FC = () => {
   const [tab, setTab] = useState<"todas" | "no_leidas" | TipoNoti>("todas");
   const [q, setQ] = useState("");
 
+  useEffect(() => {
+    const cargarNotificaciones = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        if (!token) return;
+
+        const res = await fetch(`${API_BASE}/admin/notificaciones`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "ngrok-skip-browser-warning": "true",
+          },
+          cache: "no-store",
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          const notifs = Array.isArray(data) ? data : data?.notificaciones || [];
+          
+          const mapeadas: Noti[] = notifs.map((n: any) => {
+            const p = n.payload || {};
+            const area = p.area || n.area || undefined;
+            const porcentaje = p.porcentaje || p.promedio || p.puntaje || n.porcentaje || n.puntaje;
+            const estudiante = p.estudiante || p.nombre || n.estudiante;
+            const curso = p.curso || n.curso;
+            return {
+              id: n.id_notificacion || n.id,
+              tipo: (n.tipo || p.tipo || "inactividad") as TipoNoti,
+              titulo: n.titulo || p.titulo || n.mensaje || "",
+              detalle: n.detalle || p.detalle || n.descripcion || "",
+              fechaISO: n.created_at || n.createdAt || n.fecha || new Date().toISOString(),
+              leida: !!(n.leida),
+              area,
+              puntaje: typeof porcentaje === 'number' ? Math.round(porcentaje) : undefined,
+              estudiante,
+              curso,
+            }
+          });
+          
+          setNotis(mapeadas);
+        }
+      } catch (error) {
+        console.error("Error cargando notificaciones:", error);
+      }
+    };
+
+    cargarNotificaciones();
+  }, []);
+
   const contadores = useMemo(() => {
     let ina = 0,
       pb = 0,
@@ -93,114 +146,76 @@ const Notificaciones: React.FC = () => {
   const marcarLeida = (id: Noti["id"]) =>
     setNotis((arr) => arr.map((n) => (n.id === id ? { ...n, leida: true } : n)));
 
-  return (
-    <div className="bg-white rounded-xl shadow-lg p-6">
-      {/* Header */}
-      <div className="flex items-center gap-3 mb-6">
-        <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-200 grid place-items-center">
-          <FaBell className="text-blue-600" />
-        </div>
-        <div>
-          <h2 className="text-2xl font-bold text-gray-800">Centro de Notificaciones</h2>
-          <p className="text-sm text-gray-500">
-            Recibe avisos por <strong>inactividad</strong>, <strong>puntajes bajos</strong> y{" "}
-            <strong>progreso lento</strong>.
-          </p>
-        </div>
+  const fmtTiempo = (iso: string) => {
+    const ahora = new Date();
+    const fecha = new Date(iso);
+    const diffMs = ahora.getTime() - fecha.getTime();
+    const diffHoras = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffDias = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    
+    if (diffDias > 0) return `Hace ${diffDias} día${diffDias > 1 ? 's' : ''}`;
+    if (diffHoras > 0) return `Hace ${diffHoras} hora${diffHoras > 1 ? 's' : ''}`;
+    return 'Hace unos momentos';
+  };
 
-        {/* Buscar */}
-        <div className="ml-auto relative">
-          <FaSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Buscar por estudiante, área, curso…"
-            className="pl-9 pr-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-400 focus:border-blue-400 w-72"
-          />
-        </div>
+  return (
+    <div className="p-0">
+      {/* Header */}
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-gray-900">Notificaciones</h1>
+        <p className="text-sm text-gray-600 mt-1">Centro de alertas y comunicaciones del sistema</p>
       </div>
 
-      {/* Tabs */}
-      <div className="rounded-xl border bg-white overflow-hidden mb-4">
-        <div className="grid grid-cols-5">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex gap-2">
           <TabBtn active={tab === "todas"} onClick={() => setTab("todas")} label={`Todas (${contadores.total})`} />
           <TabBtn active={tab === "no_leidas"} onClick={() => setTab("no_leidas")} label={`No Leídas (${contadores.unread})`} />
-          <TabBtn active={tab === "inactividad"} onClick={() => setTab("inactividad")} label="Inactividad" />
-          <TabBtn active={tab === "puntaje_bajo"} onClick={() => setTab("puntaje_bajo")} label="Puntajes Bajos" />
-          <TabBtn active={tab === "progreso_lento"} onClick={() => setTab("progreso_lento")} label="Progreso Lento" />
+        </div>
+        <div className="flex gap-2">
+          <button className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700 transition-colors">
+            Marcar todas como leídas
+          </button>
+          <button className="bg-red-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-red-700 transition-colors">
+            Limpiar todas
+          </button>
         </div>
       </div>
 
       {/* Lista */}
-      <div className="border rounded-xl overflow-hidden">
+      <div className="space-y-3">
         {visibles.length === 0 ? (
-          <div className="py-16 text-center">
-            <div className="mx-auto w-16 h-16 rounded-full bg-blue-50 border border-blue-200 grid place-items-center">
-              <FaBell className="text-blue-500 text-2xl" />
-            </div>
-            <h3 className="mt-4 text-lg font-semibold text-gray-800">Sin notificaciones</h3>
-            <p className="text-gray-500 text-sm">
-              Cuando haya actividad, los avisos aparecerán aquí.
-            </p>
+          <div className="text-center py-12 text-gray-500 text-sm">
+            Sin notificaciones
           </div>
         ) : (
-          <ul className="divide-y">
-            {visibles.map((n) => (
-              <li key={n.id} className="p-5">
-                <div className="flex items-start gap-3">
-                  <div className="w-9 h-9 rounded-lg bg-gray-50 border grid place-items-center">
-                    {iconoDe(n.tipo)}
-                  </div>
-
-                  <div className="flex-1">
-                    {/* Encabezado de tarjeta */}
-                    <div className="flex items-center gap-2">
-                      <span className={`text-xs px-2 py-0.5 rounded-full ${tipoChip(n.tipo)}`}>
-                        {etiquetaDe(n.tipo)}
-                      </span>
-                      {!n.leida && (
-                        <span className="text-[10px] font-semibold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full">
-                          Nueva
-                        </span>
-                      )}
-                      <span className="ml-auto text-xs text-gray-500">{fmtFecha(n.fechaISO)}</span>
+          visibles.map((n) => {
+            const iconColor = n.tipo === 'puntaje_bajo' || n.tipo === 'inactividad' ? '#f59e0b' : '#8b5cf6';
+            return (
+              <div key={n.id} className="bg-white rounded-lg border border-gray-100 p-4 shadow-sm">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-start gap-3 flex-1">
+                    <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: iconColor, opacity: 0.2 }}>
+                      {iconoDe(n.tipo)}
                     </div>
-
-                    <h4 className="mt-1 font-semibold text-gray-900">{n.titulo}</h4>
-                    <p className="text-sm text-gray-600">{n.detalle}</p>
-
-                    {/* Meta */}
-                    <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
-                      <Meta label="Estudiante" value={n.estudiante} />
-                      <Meta label="Curso" value={n.curso} />
-                      <div className="flex gap-3">
-                        {n.area && (
-                          <span className="px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 text-xs">
-                            Área: {n.area}
-                          </span>
-                        )}
-                        {typeof n.puntaje === "number" && (
-                          <span className="px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 text-xs">
-                            Puntaje: {n.puntaje}
-                          </span>
-                        )}
-                      </div>
+                    <div className="flex-1">
+                      <h4 className="font-semibold text-gray-900 text-sm">{n.titulo}</h4>
+                      <p className="text-sm text-gray-700 mt-1">{n.estudiante || n.area || '-'}{n.curso ? ` - ${n.curso}` : ''}</p>
+                      <p className="text-xs text-gray-600 mt-1">{n.detalle}</p>
+                      <p className="text-xs text-gray-500 mt-1">{fmtTiempo(n.fechaISO)}</p>
                     </div>
                   </div>
-
-                  {/* Acción */}
-                  {!n.leida && (
-                    <button
-                      onClick={() => marcarLeida(n.id)}
-                      className="ml-2 text-sm text-blue-700 hover:text-blue-900"
-                    >
-                      Marcar como leída
+                  <div className="flex items-center gap-1">
+                    <button className="text-gray-400 hover:text-gray-600">
+                      <span className="text-lg">&gt;</span>
                     </button>
-                  )}
+                    <button className="text-gray-400 hover:text-gray-600">
+                      <span className="text-lg">&times;</span>
+                    </button>
+                  </div>
                 </div>
-              </li>
-            ))}
-          </ul>
+              </div>
+            );
+          })
         )}
       </div>
     </div>
@@ -215,12 +230,9 @@ const TabBtn: React.FC<{ active: boolean; label: string; onClick: () => void }> 
 }) => (
   <button
     onClick={onClick}
-    className={
-      "px-4 py-3 text-sm font-medium border-r last:border-r-0 transition " +
-      (active
-        ? "bg-blue-50 text-blue-700"
-        : "bg-white text-gray-600 hover:bg-gray-50")
-    }
+    className={`px-3 py-1.5 rounded-full text-xs font-medium transition ${
+      active ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'
+    }`}
   >
     {label}
   </button>
