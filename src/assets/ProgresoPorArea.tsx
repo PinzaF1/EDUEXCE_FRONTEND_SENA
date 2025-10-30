@@ -2,8 +2,8 @@
 import React from "react";
 import {
   ResponsiveContainer,
-  AreaChart,
-  Area,
+  BarChart,
+  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -53,51 +53,57 @@ const ProgresoPorArea: React.FC<{ data: PuntoMes[] }> = ({ data }) => {
         ];
 
   return (
-    <div className="rounded-2xl p-5 shadow-sm border bg-white">
-      <h3 className="font-bold text-gray-800 mb-1">Progreso por Área </h3>
-      <p className="text-sm text-gray-500 mb-3">
+    <div>
+      <h3 className="font-bold text-gray-800 mb-0.5 text-sm">Progreso por Área</h3>
+      <p className="text-xs text-gray-500 mb-3">
         Comparación mes anterior con el mes actual
       </p>
 
-      <div className="h-72">
+      <div className="h-64">
         <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={base} margin={{ top: 10, right: 16, left: 0, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="mes" />
-            <YAxis domain={[0, 100]} />
-            <Tooltip />
-            <Legend />
-            <Area
-              type="monotone"
-              dataKey="Lectera Critica"
-              stroke={COLORS["Lectera Critica"]}
-              fill={`${COLORS["Lectera Critica"]}33`}
+          <BarChart data={base} margin={{ top: 5, right: 5, left: -10, bottom: 5 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+            <XAxis dataKey="mes" stroke="#9ca3af" fontSize={11} />
+            <YAxis domain={[0, 100]} stroke="#9ca3af" fontSize={11} />
+            <Tooltip 
+              content={({ active, payload, label }) => {
+                if (!active || !payload) return null;
+                return (
+                  <div style={{
+                    backgroundColor: 'white',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '8px',
+                    padding: '8px'
+                  }}>
+                    <div style={{ fontWeight: 600, marginBottom: '8px', color: '#1f2937' }}>
+                      {label}
+                    </div>
+                    {payload.map((entry, index) => (
+                      <div key={index} style={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        gap: '8px',
+                        marginBottom: '4px'
+                      }}>
+                        <span style={{ 
+                          width: '12px', 
+                          height: '12px', 
+                          backgroundColor: entry.color,
+                          borderRadius: '2px'
+                        }} />
+                        <span>{entry.name} : {entry.value}</span>
+                      </div>
+                    ))}
+                  </div>
+                );
+              }}
             />
-            <Area
-              type="monotone"
-              dataKey="Matematicas"
-              stroke={COLORS.Matematicas}
-              fill={`${COLORS.Matematicas}33`}
-            />
-            <Area
-              type="monotone"
-              dataKey="Sociales y Ciudadanas"
-              stroke={COLORS["Sociales y Ciudadanas"]}
-              fill={`${COLORS["Sociales y Ciudadanas"]}33`}
-            />
-            <Area
-              type="monotone"
-              dataKey="Ciencias Naturales"
-              stroke={COLORS["Ciencias Naturales"]}
-              fill={`${COLORS["Ciencias Naturales"]}33`}
-            />
-            <Area
-              type="monotone"
-              dataKey="Ingles"
-              stroke={COLORS.Ingles}
-              fill={`${COLORS.Ingles}33`}
-            />
-          </AreaChart>
+            <Bar dataKey="Lectera Critica" fill={COLORS["Lectera Critica"]} radius={[4, 4, 0, 0]} />
+            <Bar dataKey="Matematicas" fill={COLORS.Matematicas} radius={[4, 4, 0, 0]} />
+            <Bar dataKey="Sociales y Ciudadanas" fill={COLORS["Sociales y Ciudadanas"]} radius={[4, 4, 0, 0]} />
+            <Bar dataKey="Ciencias Naturales" fill={COLORS["Ciencias Naturales"]} radius={[4, 4, 0, 0]} />
+            <Bar dataKey="Ingles" fill={COLORS.Ingles} radius={[4, 4, 0, 0]} />
+          </BarChart>
         </ResponsiveContainer>
       </div>
     </div>

@@ -1,14 +1,16 @@
 // src/assets/perfil.tsx
 import React, { useEffect, useMemo, useState } from "react";
-import { FaUpload, FaTrash, FaEdit, FaSave, FaTimes, FaImage, FaUniversity } from "react-icons/fa";
+import { FaUpload, FaTrash, FaEdit, FaSave, FaTimes, FaImage, FaEye, FaEyeSlash } from "react-icons/fa";
+import { useNavigate } from "react-router-dom";
 
 /* ===== BASE URL + helpers de fetch ===== */
-const RAW_BASE = (import.meta as any).env?.VITE_API_URL || "https://overvaliantly-discourseless-delilah.ngrok-free.dev";
+const RAW_BASE = (import.meta as any).env?.VITE_API_URL || "https://gillian-semiluminous-blubberingly.ngrok-free.dev/";
 const BASE_URL = RAW_BASE.replace(/\/+$/, "");
 const api = (path = "") => `${BASE_URL}${path.startsWith("/") ? path : "/" + path}`;
 
 const GET_PERFIL_URL = api("/admin/perfil");
 const PUT_PERFIL_URL = api("/admin/perfil");
+const POST_CAMBIAR_PASS_URL = api("/admin/cambiar-password");
 
 const getToken = () => localStorage.getItem("token") || "";
 
@@ -101,6 +103,7 @@ type ApiPerfilResponse = {
 const Perfil: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const navigate = useNavigate();
 
   const [msg, setMsg] = useState<{ tipo: "ok" | "err"; texto: string } | null>(null);
   const show = (tipo: "ok" | "err", texto: string) => {
@@ -129,6 +132,13 @@ const Perfil: React.FC = () => {
   const [departamento, setDepartamento] = useState("");
 
   const [editando, setEditando] = useState(false);
+
+  // Modal cambiar contraseña
+  const [openPass, setOpenPass] = useState(false);
+  const [passOld, setPassOld] = useState("");
+  const [passNew, setPassNew] = useState("");
+  const [passRep, setPassRep] = useState("");
+  const [passLoading, setPassLoading] = useState(false);
 
   const aplicarInstitution = (obj?: PerfilInstitucion | null) => {
     if (!obj) return;
@@ -291,19 +301,41 @@ const Perfil: React.FC = () => {
     show("ok", "Imagen eliminada.");
   };
 
+  const cambiarPassword = async () => {
+    if (!passOld || !passNew || !passRep) {
+      show("err", "Completa todos los campos.");
+      return;
+    }
+    if (passNew !== passRep) {
+      show("err", "Las contraseñas no coinciden.");
+      return;
+    }
+    try {
+      setPassLoading(true);
+      const r = await fetch(POST_CAMBIAR_PASS_URL, {
+        method: "POST",
+        headers: authHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify({ actual: passOld, nueva: passNew }),
+      });
+      if (!r.ok) {
+        const txt = await r.text().catch(() => "");
+        show("err", txt || "No se pudo cambiar la contraseña.");
+        return;
+      }
+      show("ok", "Contraseña actualizada.");
+      setOpenPass(false);
+      setPassOld("");
+      setPassNew("");
+      setPassRep("");
+    } catch {
+      show("err", "Error de red.");
+    } finally {
+      setPassLoading(false);
+    }
+  };
+
   return (
     <div className="bg-white rounded-xl shadow-lg p-6">
-      {/* Encabezado */}
-      <div className="flex items-center gap-3 mb-6">
-        <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center">
-          <FaUniversity className="text-blue-600" />
-        </div>
-        <div>
-          <h2 className="text-2xl font-bold text-gray-800">Perfil de la institución</h2>
-          <p className="text-sm text-gray-500">Administra el logo y los datos generales de tu institución.</p>
-        </div>
-      </div>
-
       {msg && (
         <div
           className={`mb-4 p-3 rounded-lg border text-sm ${
@@ -319,9 +351,9 @@ const Perfil: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* ----------- izquierda: Foto / Logo ----------- */}
         <div className="lg:col-span-1">
-          <div className="rounded-xl border p-4">
-            <h3 className="font-semibold text-gray-800 mb-3">Foto / Logo de la institución</h3>
-            <div className="flex items-center gap-4">
+          <div className="rounded-xl border p-5">
+            <h3 className="font-semibold text-gray-800 mb-4">Foto / Logo de la institución</h3>
+            <div className="flex flex-col items-center gap-4">
               <div className="w-28 h-28 rounded-full overflow-hidden border bg-gray-50 flex items-center justify-center">
                 {logoUrl ? (
                   <img src={logoUrl} className="w-full h-full object-cover" alt="logo" />
@@ -329,14 +361,14 @@ const Perfil: React.FC = () => {
                   <FaImage className="text-gray-300 text-3xl" />
                 )}
               </div>
-              <div className="space-x-2">
+              <div className="flex gap-2">
                 <label className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-sm cursor-pointer">
                   <FaUpload />
                   {subiendo ? "Subiendo..." : "Subir"}
                   <input type="file" accept="image/*" hidden onChange={onPickLogo} disabled={subiendo} />
                 </label>
                 <button
-                  className="inline-flex items-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-lg text-sm"
+                  className="inline-flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded-lg text-sm"
                   onClick={quitarLogo}
                   disabled={!logoUrl}
                 >
@@ -350,17 +382,30 @@ const Perfil: React.FC = () => {
 
         {/* ----------- derecha: Datos de la institución ----------- */}
         <div className="lg:col-span-2">
-          <div className="rounded-xl border p-4">
+          <div className="rounded-xl border p-5">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-semibold text-gray-800">Datos de la institución</h3>
               {!editando ? (
-                <button
-                  onClick={() => setEditando(true)}
-                  className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-sm"
-                >
-                  <FaEdit />
-                  Editar
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => {
+                      setPassOld("");
+                      setPassNew("");
+                      setPassRep("");
+                      setOpenPass(true);
+                    }}
+                    className="px-3 py-2 rounded-lg text-sm border border-blue-600 text-blue-600 hover:bg-blue-50"
+                  >
+                    Cambiar contraseña
+                  </button>
+                  <button
+                    onClick={() => setEditando(true)}
+                    className="inline-flex items-center gap-2 border border-blue-600 text-blue-600 hover:bg-blue-50 px-3 py-2 rounded-lg text-sm"
+                  >
+                    <FaEdit />
+                    Editar
+                  </button>
+                </div>
               ) : (
                 <div className="space-x-2">
                   <button
@@ -395,6 +440,37 @@ const Perfil: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {openPass && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setOpenPass(false)} />
+          <form className="relative bg-white w-full max-w-md mx-auto rounded-lg shadow-lg border p-5" autoComplete="off">
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="font-semibold text-gray-800">Cambiar contraseña</h4>
+              <button className="text-gray-400 hover:text-gray-600" onClick={(e) => { e.preventDefault(); setOpenPass(false); }}>
+                <FaTimes />
+              </button>
+            </div>
+            <div className="space-y-3">
+              <FieldPassword label="Contraseña actual" value={passOld} onChange={setPassOld} />
+              <FieldPassword label="Nueva contraseña" value={passNew} onChange={setPassNew} />
+              <FieldPassword label="Confirmar nueva contraseña" value={passRep} onChange={setPassRep} />
+            </div>
+            <div className="mt-4 flex items-center justify-end gap-2">
+              <button className="px-3 py-2 rounded-md text-sm bg-gray-100 hover:bg-gray-200 text-gray-700" onClick={(e) => { e.preventDefault(); setOpenPass(false); }}>
+                Cancelar
+              </button>
+              <button
+                className="px-3 py-2 rounded-md text-sm bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-60"
+                onClick={(e) => { e.preventDefault(); cambiarPassword(); }}
+                disabled={passLoading}
+              >
+                {passLoading ? "Guardando..." : "Cambiar contraseña"}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 };
@@ -414,8 +490,41 @@ const Input: React.FC<{
       disabled={disabled}
       className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-400 focus:border-blue-400 disabled:bg-gray-100"
       placeholder={label}
+      autoComplete="off"
     />
   </label>
 );
+
+const FieldPassword: React.FC<{ label: string; value: string; onChange: (v: string) => void }> = ({ label, value, onChange }) => {
+  const [show, setShow] = useState(false);
+  const name = `pw_${label.replace(/\s+/g, '_').toLowerCase()}`;
+  return (
+    <label className="block">
+      <span className="text-sm text-gray-600">{label}</span>
+      <div className="relative mt-1">
+        <input
+          type={show ? "text" : "password"}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="w-full border border-gray-300 rounded-lg px-3 py-2 pr-10 focus:ring-2 focus:ring-blue-400 focus:border-blue-400"
+          placeholder={label}
+          autoComplete="new-password"
+          name={name}
+          autoCorrect="off"
+          autoCapitalize="off"
+          spellCheck={false}
+        />
+        <button
+          type="button"
+          aria-label={show ? "Ocultar contraseña" : "Mostrar contraseña"}
+          onClick={() => setShow(!show)}
+          className="absolute inset-y-0 right-0 px-3 text-gray-500 hover:text-gray-700"
+        >
+          {show ? <FaEyeSlash /> : <FaEye />}
+        </button>
+      </div>
+    </label>
+  );
+};
 
 export default Perfil;

@@ -19,7 +19,7 @@ const LoginAdm: React.FC = () => {
     setMensaje('')
     setLoading(true)
     try {
-      const res = await fetch('https://overvaliantly-discourseless-delilah.ngrok-free.dev/admin/login', {
+      const res = await fetch('https://gillian-semiluminous-blubberingly.ngrok-free.dev/admin/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ correo: correo.trim(), password }),
