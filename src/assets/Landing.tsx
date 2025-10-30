@@ -57,7 +57,7 @@ const FeatureTile: React.FC<{ icon: React.ReactNode; title: string; kpi: string 
   </div>
 )
 
-const Publicidad: React.FC = () => {
+const Landing: React.FC = () => {
   const year = new Date().getFullYear()
 
   return (
@@ -119,7 +119,7 @@ const Publicidad: React.FC = () => {
               Tu plataforma integral para la <span className="underline decoration-white/30 underline-offset-4">excelencia educativa</span>
             </h1>
             <p className="mx-auto mt-3 max-w-2xl text-base text-white/90">
-              “EduExce combina ‘Educación’ y ‘Excelencia’. Representa la búsqueda constante de la perfección académica y los más altos estándares educativos.”
+              "EduExce combina 'Educación' y 'Excelencia'. Representa la búsqueda constante de la perfección académica y los más altos estándares educativos."
             </p>
 
             <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
@@ -241,4 +241,5 @@ const Publicidad: React.FC = () => {
   )
 }
 
-export default Publicidad
+export default Landing
+
