@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
+import { apiUrl, baseHeaders } from '../utils/api'
 import {
   FaSchool,
   FaBarcode,
@@ -132,7 +133,45 @@ const SelectJornada: React.FC<{
 }
 /* ----------------------------------------------------------------------- */
 
+// Componente InputGroup movido FUERA para evitar recreación en cada render
+const InputGroup: React.FC<{
+  label: string
+  name: keyof FormState
+  icon: React.ReactNode
+  type?: string
+  value: string
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void
+  placeholder?: string
+  required?: boolean
+  inputProps?: React.InputHTMLAttributes<HTMLInputElement>
+}> = ({ label, name, icon, type = 'text', value, onChange, placeholder, required, inputProps }) => (
+  <div className="space-y-1.5">
+    <label className="text-xs font-medium text-slate-700">
+      {label} {required && <span className="text-red-500">*</span>}
+    </label>
+    <div className="relative">
+      <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-slate-400">{icon}</span>
+      <input
+        type={type}
+        name={name}
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        required={required}
+        {...inputProps}
+        className="w-full rounded-md border border-slate-200 bg-white pl-8 pr-3 py-2.5 text-sm
+                   outline-none transition focus:border-transparent focus:ring-2"
+        // @ts-ignore
+        style={{ '--tw-ring-color': BRAND_MAIN }}
+      />
+    </div>
+  </div>
+)
+
+/* ----------------------------------------------------------------------- */
+
 const RegistroAdm: React.FC = () => {
+  const navigate = useNavigate()
   const [form, setForm] = useState<FormState>({
     nombre_institucion: '',
     codigo_dane: '',
@@ -147,6 +186,7 @@ const RegistroAdm: React.FC = () => {
   })
 
   const [mensaje, setMensaje] = useState('')
+  const [esExito, setEsExito] = useState(false) // Para diferenciar error de éxito
   const [cargando, setCargando] = useState(false)
   const [verPassword, setVerPassword] = useState(false)
   const [verConfirmar, setVerConfirmar] = useState(false)
@@ -159,84 +199,48 @@ const RegistroAdm: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setMensaje('')
+    setEsExito(false)
 
     if (form.password !== form.confirm_password) {
       setMensaje('Las contraseñas no coinciden')
+      setEsExito(false)
       return
     }
 
     setCargando(true)
     try {
-      const res = await fetch('https://gillian-semiluminous-blubberingly.ngrok-free.dev/instituciones/registro', {
+      const res = await fetch(apiUrl('/instituciones/registro'), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: baseHeaders(),
         body: JSON.stringify(form),
       })
       const data = await res.json()
 
       if (res.ok && data.institucion) {
-        setMensaje('Institución registrada correctamente')
+        setMensaje('✓ Institución registrada correctamente. Redirigiendo al login...')
+        setEsExito(true)
+        
+        // Guardar datos (opcional, por si quieres hacer auto-login después)
         localStorage.setItem('nombre_institucion', data.institucion.nombre_institucion || '')
         if (data.institucion.id_institucion) {
           localStorage.setItem('id_institucion', String(data.institucion.id_institucion))
         }
-        if (data.token) localStorage.setItem('token', data.token)
 
-        setForm({
-          nombre_institucion: '',
-          codigo_dane: '',
-          ciudad: '',
-          departamento: '',
-          direccion: '',
-          telefono: '',
-          jornada: '',
-          correo: '',
-          password: '',
-          confirm_password: '',
-        })
+        // Redirigir al login después de 2 segundos
+        setTimeout(() => {
+          navigate('/login', { replace: true })
+        }, 2000)
       } else {
         setMensaje(data.mensaje || data.error || 'Error al registrar la institución')
+        setEsExito(false)
       }
     } catch {
       setMensaje('Error de conexión con el servidor')
+      setEsExito(false)
     } finally {
       setCargando(false)
     }
   }
-
-  const InputGroup: React.FC<{
-    label: string
-    name: keyof FormState
-    icon: React.ReactNode
-    type?: string
-    value: string
-    onChange: (e: React.ChangeEvent<HTMLInputElement>) => void
-    placeholder?: string
-    required?: boolean
-    inputProps?: React.InputHTMLAttributes<HTMLInputElement>
-  }> = ({ label, name, icon, type = 'text', value, onChange, placeholder, required, inputProps }) => (
-    <div className="space-y-1.5">
-      <label className="text-xs font-medium text-slate-700">
-        {label} {required && <span className="text-red-500">*</span>}
-      </label>
-      <div className="relative">
-        <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-slate-400">{icon}</span>
-        <input
-          type={type}
-          name={name}
-          value={value}
-          onChange={onChange}
-          placeholder={placeholder}
-          required={required}
-          {...inputProps}
-          className="w-full rounded-md border border-slate-200 bg-white pl-8 pr-3 py-2.5 text-sm
-                     outline-none transition focus:border-transparent focus:ring-2"
-          // @ts-ignore
-          style={{ '--tw-ring-color': BRAND_MAIN }}
-        />
-      </div>
-    </div>
-  )
 
   return (
     <div className="min-h-screen w-full bg-gradient-to-b from-[#F7FAFF] via-[#F8FBFF] to-white">
@@ -440,7 +444,15 @@ const RegistroAdm: React.FC = () => {
               {cargando ? 'Registrando…' : 'Registrar Institución'}
             </button>
 
-            {mensaje && <p className="text-center text-xs font-medium text-red-500">{mensaje}</p>}
+            {mensaje && (
+              <p 
+                className={`text-center text-xs font-medium ${
+                  esExito ? 'text-green-600' : 'text-red-500'
+                }`}
+              >
+                {mensaje}
+              </p>
+            )}
 
             <p className="mt-3 text-center text-xs text-slate-600">
               ¿Ya tiene una cuenta?{' '}
