@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { FaEnvelope, FaLock, FaEye, FaEyeSlash, FaGraduationCap } from 'react-icons/fa'
+import { apiUrl, baseHeaders } from '../utils/api'
 import { FiArrowRight } from 'react-icons/fi'
 
 const BRAND_DARK = '#1E40AF'
@@ -19,9 +20,9 @@ const LoginAdm: React.FC = () => {
     setMensaje('')
     setLoading(true)
     try {
-      const res = await fetch('https://gillian-semiluminous-blubberingly.ngrok-free.dev/admin/login', {
+      const res = await fetch(apiUrl('/admin/login'), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: baseHeaders(),
         body: JSON.stringify({ correo: correo.trim(), password }),
       })
 

@@ -5,8 +5,8 @@ import LoginAdm from '../src/assets/LoginAdm'
 import RegistroAdm from '../src/assets/RegistroAdm'
 import RestContra from '../src/assets/RestContra'
 
-// Landing / Publicidad
-import Publicidad from '../src/assets/Publicidad'
+// Landing / Información
+import Landing from '../src/assets/Landing'
 
 // Dashboard principal
 import Dashboard from '../src/assets/Dashboard'
@@ -25,13 +25,13 @@ function App() {
       <Routes>
         <Route path="/" element={<Navigate to="/publicidad" replace />} />
 
-        <Route path="/publicidad" element={<Publicidad />} />
+        <Route path="/publicidad" element={<Landing />} />
 
         <Route path="/login" element={<LoginAdm />} />
         <Route path="/registro" element={<RegistroAdm />} />
         <Route path="/password" element={<RestContra />} />
 
-        <Route path="/informacion" element={<Publicidad />} />
+        <Route path="/informacion" element={<Landing />} />
 
         <Route
           path="/admin/cambiar-password"
