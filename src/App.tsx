@@ -6,7 +6,7 @@ import RegistroAdm from '../src/assets/RegistroAdm'
 import RestContra from '../src/assets/RestContra'
 import RestablecerAdmin from '../src/assets/RestablecerAdmin'
 
-// Landing
+// Landing / Información
 import Landing from '../src/assets/Landing'
 
 // Dashboard principal
