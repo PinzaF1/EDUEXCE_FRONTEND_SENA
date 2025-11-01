@@ -4,6 +4,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import LoginAdm from '../src/assets/LoginAdm'
 import RegistroAdm from '../src/assets/RegistroAdm'
 import RestContra from '../src/assets/RestContra'
+import RestablecerAdmin from '../src/assets/RestablecerAdmin'
 
 // Landing / Información
 import Landing from '../src/assets/Landing'
@@ -30,6 +31,7 @@ function App() {
         <Route path="/login" element={<LoginAdm />} />
         <Route path="/registro" element={<RegistroAdm />} />
         <Route path="/password" element={<RestContra />} />
+        <Route path="/restablecer" element={<RestablecerAdmin />} />
 
         <Route path="/informacion" element={<Landing />} />
 
