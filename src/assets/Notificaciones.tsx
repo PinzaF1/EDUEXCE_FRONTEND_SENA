@@ -14,7 +14,7 @@ const RAW_BASE =
 const API_BASE = RAW_BASE.replace(/\/+$/, "");
 
 /* ===================== Tipos ===================== */
-type TipoNoti = "inactividad" | "puntaje_bajo" | "progreso_lento";
+type TipoNoti = "inactividad" | "puntaje_bajo" | "progreso_lento" | "area_critica" | "estudiante_alerta" | "puntaje_bajo_inmediato" | "inactividad_30d";
 type Noti = {
   id: string | number;
   tipo: TipoNoti;
@@ -32,24 +32,29 @@ type Noti = {
 const NOTI_INICIALES: Noti[] = [];
 
 /* ===================== UI helpers ===================== */
-const tipoChip = (t: TipoNoti) =>
-  t === "inactividad"
-    ? "bg-blue-50 text-blue-700 border border-blue-200"
-    : t === "puntaje_bajo"
-    ? "bg-rose-50 text-rose-700 border border-rose-200"
-    : "bg-amber-50 text-amber-700 border border-amber-200";
+const tipoChip = (t: TipoNoti) => {
+  if (t === "inactividad" || t === "inactividad_30d") return "bg-blue-50 text-blue-700 border border-blue-200";
+  if (t === "puntaje_bajo" || t === "puntaje_bajo_inmediato") return "bg-rose-50 text-rose-700 border border-rose-200";
+  if (t === "area_critica") return "bg-red-50 text-red-700 border border-red-200";
+  if (t === "estudiante_alerta") return "bg-orange-50 text-orange-700 border border-orange-200";
+  return "bg-amber-50 text-amber-700 border border-amber-200";
+};
 
-const iconoDe = (t: TipoNoti) =>
-  t === "inactividad" ? (
-    <FaRegClock className="text-blue-600" />
-  ) : t === "puntaje_bajo" ? (
-    <FaExclamationTriangle className="text-rose-600" />
-  ) : (
-    <FaChartLine className="text-amber-600" />
-  );
+const iconoDe = (t: TipoNoti) => {
+  if (t === "inactividad" || t === "inactividad_30d") return <FaRegClock className="text-blue-600" />;
+  if (t === "puntaje_bajo" || t === "puntaje_bajo_inmediato") return <FaExclamationTriangle className="text-rose-600" />;
+  if (t === "area_critica") return <FaExclamationTriangle className="text-red-600" />;
+  if (t === "estudiante_alerta") return <FaBell className="text-orange-600" />;
+  return <FaChartLine className="text-amber-600" />;
+};
 
-const etiquetaDe = (t: TipoNoti) =>
-  t === "inactividad" ? "Inactividad" : t === "puntaje_bajo" ? "Puntaje Bajo" : "Progreso Lento";
+const etiquetaDe = (t: TipoNoti) => {
+  if (t === "inactividad" || t === "inactividad_30d") return "Inactividad";
+  if (t === "puntaje_bajo" || t === "puntaje_bajo_inmediato") return "Puntaje Bajo";
+  if (t === "area_critica") return "Área Crítica";
+  if (t === "estudiante_alerta") return "Estudiante en Alerta";
+  return "Progreso Lento";
+};
 
 const fmtFecha = (iso: string) =>
   new Date(iso).toLocaleDateString(undefined, { year: "numeric", month: "2-digit", day: "2-digit" });
@@ -59,6 +64,7 @@ const Notificaciones: React.FC = () => {
   const [notis, setNotis] = useState<Noti[]>(NOTI_INICIALES);
   const [tab, setTab] = useState<"todas" | "no_leidas" | TipoNoti>("todas");
   const [q, setQ] = useState("");
+  const [sseConectado, setSseConectado] = useState(false);
 
   useEffect(() => {
     const cargarNotificaciones = async () => {
@@ -106,6 +112,100 @@ const Notificaciones: React.FC = () => {
     };
 
     cargarNotificaciones();
+
+    // ========== CONEXIÓN SSE PARA NOTIFICACIONES EN TIEMPO REAL ==========
+    const token = localStorage.getItem("token");
+    if (!token) return;
+
+    console.log("[SSE] Conectando a notificaciones en tiempo real...");
+    
+    const eventSource = new EventSource(`${API_BASE}/admin/notificaciones/stream`, {
+      withCredentials: true,
+    });
+
+    // Alternativa: si EventSource no soporta headers, usar fetch con ReadableStream
+    // Pero EventSource es más simple y el token se puede pasar en el middleware
+
+    eventSource.onopen = () => {
+      console.log("[SSE] Conexión establecida con el servidor");
+      setSseConectado(true);
+    };
+
+    eventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        
+        // Ignorar mensajes de sistema (heartbeat, conexión)
+        if (data.tipo === 'conexion') {
+          console.log("[SSE] Conexión confirmada:", data.mensaje);
+          setSseConectado(true);
+          return;
+        }
+
+        console.log("[SSE] Nueva notificación recibida:", data);
+
+        // Mapear la notificación
+        const p = data.payload || {};
+        const nuevaNotificacion: Noti = {
+          id: data.id_notificacion || data.id,
+          tipo: (data.tipo || "inactividad") as TipoNoti,
+          titulo: data.titulo || p.titulo || "",
+          detalle: data.detalle || p.detalle || "",
+          fechaISO: data.created_at || data.createdAt || new Date().toISOString(),
+          leida: false,
+          area: p.area,
+          puntaje: typeof p.porcentaje === 'number' ? Math.round(p.porcentaje) : (typeof p.puntaje === 'number' ? Math.round(p.puntaje) : undefined),
+          estudiante: p.estudiante || p.nombre,
+          curso: p.curso,
+        };
+
+        // Agregar al inicio de la lista (sin duplicados)
+        setNotis((prev) => {
+          const existe = prev.some(n => n.id === nuevaNotificacion.id);
+          if (existe) return prev;
+          return [nuevaNotificacion, ...prev];
+        });
+
+        // Mostrar notificación del navegador
+        if (Notification.permission === "granted") {
+          new Notification(nuevaNotificacion.titulo, {
+            body: nuevaNotificacion.detalle,
+            icon: "/vite.svg",
+            badge: "/vite.svg",
+            tag: String(nuevaNotificacion.id), // Evita duplicados
+          });
+        }
+
+        // Sonido opcional (descomenta si tienes un archivo de audio)
+        // try {
+        //   const audio = new Audio("/notification.mp3");
+        //   audio.volume = 0.3;
+        //   audio.play().catch(() => {});
+        // } catch {}
+
+      } catch (error) {
+        console.error("[SSE] Error procesando notificación:", error);
+      }
+    };
+
+    eventSource.onerror = (error) => {
+      console.error("[SSE] Error en la conexión:", error);
+      console.log("[SSE] Intentando reconectar...");
+      setSseConectado(false);
+    };
+
+    // Pedir permiso para notificaciones del navegador
+    if (Notification.permission === "default") {
+      Notification.requestPermission().then(permission => {
+        console.log("[Notifications] Permiso:", permission);
+      });
+    }
+
+    // Cleanup al desmontar el componente
+    return () => {
+      console.log("[SSE] Cerrando conexión");
+      eventSource.close();
+    };
   }, []);
 
   const contadores = useMemo(() => {
@@ -143,8 +243,58 @@ const Notificaciones: React.FC = () => {
     );
   }, [notis, tab, q]);
 
-  const marcarLeida = (id: Noti["id"]) =>
-    setNotis((arr) => arr.map((n) => (n.id === id ? { ...n, leida: true } : n)));
+  const marcarLeida = async (id: Noti["id"]) => {
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) return;
+
+      // Actualizar en el servidor
+      await fetch(`${API_BASE}/admin/notificaciones/marcar`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+          "ngrok-skip-browser-warning": "true",
+        },
+        body: JSON.stringify({ ids: [id] }),
+      });
+
+      // Actualizar localmente
+      setNotis((arr) => arr.map((n) => (n.id === id ? { ...n, leida: true } : n)));
+    } catch (error) {
+      console.error("Error marcando como leída:", error);
+    }
+  };
+
+  const marcarTodasLeidas = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) return;
+
+      const idsNoLeidas = notis.filter(n => !n.leida).map(n => n.id);
+      if (idsNoLeidas.length === 0) return;
+
+      await fetch(`${API_BASE}/admin/notificaciones/marcar`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+          "ngrok-skip-browser-warning": "true",
+        },
+        body: JSON.stringify({ ids: idsNoLeidas }),
+      });
+
+      setNotis((arr) => arr.map((n) => ({ ...n, leida: true })));
+    } catch (error) {
+      console.error("Error marcando todas como leídas:", error);
+    }
+  };
+
+  const limpiarTodas = () => {
+    if (window.confirm("¿Estás seguro de que quieres limpiar todas las notificaciones? Esta acción no se puede deshacer.")) {
+      setNotis([]);
+    }
+  };
 
   const fmtTiempo = (iso: string) => {
     const ahora = new Date();
@@ -162,8 +312,18 @@ const Notificaciones: React.FC = () => {
     <div className="p-0">
       {/* Header */}
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Notificaciones</h1>
-        <p className="text-sm text-gray-600 mt-1">Centro de alertas y comunicaciones del sistema</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Notificaciones</h1>
+            <p className="text-sm text-gray-600 mt-1">Centro de alertas y comunicaciones del sistema</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium ${sseConectado ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+              <span className={`w-2 h-2 rounded-full ${sseConectado ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`}></span>
+              {sseConectado ? 'Tiempo Real Activo' : 'Conectando...'}
+            </div>
+          </div>
+        </div>
       </div>
 
       <div className="flex items-center justify-between mb-4">
@@ -172,10 +332,17 @@ const Notificaciones: React.FC = () => {
           <TabBtn active={tab === "no_leidas"} onClick={() => setTab("no_leidas")} label={`No Leídas (${contadores.unread})`} />
         </div>
         <div className="flex gap-2">
-          <button className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700 transition-colors">
+          <button 
+            onClick={marcarTodasLeidas}
+            disabled={contadores.unread === 0}
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
             Marcar todas como leídas
           </button>
-          <button className="bg-red-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-red-700 transition-colors">
+          <button 
+            onClick={limpiarTodas}
+            className="bg-red-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-red-700 transition-colors"
+          >
             Limpiar todas
           </button>
         </div>

@@ -2,10 +2,7 @@
 import React, { useEffect, useState } from "react";
 import { FaShieldAlt, FaKey } from "react-icons/fa";
 import { useLocation } from "react-router-dom";
-
-/* ======== API ======== */
-const API_BASE = "https://gillian-semiluminous-blubberingly.ngrok-free.dev/";
-const POST_CAMBIAR_PASSWORD_URL = `${API_BASE}/admin/perfil/cambiar-password`;
+import { apiUrl, authHeaders } from "../utils/api";
 
 type TabKey = "institucion" | "seguridad";
 
@@ -52,13 +49,9 @@ const Configuracion: React.FC = () => {
 
     setSavingPwd(true);
     try {
-      const token = localStorage.getItem("token") || "";
-      const r = await fetch(POST_CAMBIAR_PASSWORD_URL, {
+      const r = await fetch(apiUrl('/admin/perfil/cambiar-password'), {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
+        headers: authHeaders(),
         body: JSON.stringify({ actual: pwdActual, nueva: pwdNueva }),
       });
 

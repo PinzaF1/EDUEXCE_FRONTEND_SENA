@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { Link, useSearchParams, useNavigate } from 'react-router-dom'
 import { FaGraduationCap, FaLock, FaEye, FaEyeSlash } from 'react-icons/fa'
 import { FiCheck } from 'react-icons/fi'
+import { apiUrl, baseHeaders } from '../utils/api'
 
 type RestablecerResponse = {
   ok?: boolean
@@ -68,14 +69,11 @@ const RestablecerAdmin: React.FC = () => {
     setGuardando(true)
 
     try {
-      const res = await fetch(
-        'https://gillian-semiluminous-blubberingly.ngrok-free.dev/auth/recovery/admin/restablecer',
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-          body: JSON.stringify({ token, nueva }),
-        }
-      )
+      const res = await fetch(apiUrl('/auth/recovery/admin/restablecer'), {
+        method: 'POST',
+        headers: baseHeaders(),
+        body: JSON.stringify({ token, nueva }),
+      })
 
       const data: RestablecerResponse = await res.json()
 
