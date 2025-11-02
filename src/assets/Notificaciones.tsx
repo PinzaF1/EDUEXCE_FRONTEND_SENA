@@ -14,7 +14,7 @@ const RAW_BASE =
 const API_BASE = RAW_BASE.replace(/\/+$/, "");
 
 /* ===================== Tipos ===================== */
-type TipoNoti = "inactividad" | "puntaje_bajo" | "progreso_lento";
+type TipoNoti = "inactividad" | "puntaje_bajo" | "progreso_lento" | "area_critica" | "estudiante_alerta" | "puntaje_bajo_inmediato" | "inactividad_30d";
 type Noti = {
   id: string | number;
   tipo: TipoNoti;
@@ -32,24 +32,29 @@ type Noti = {
 const NOTI_INICIALES: Noti[] = [];
 
 /* ===================== UI helpers ===================== */
-const tipoChip = (t: TipoNoti) =>
-  t === "inactividad"
-    ? "bg-blue-50 text-blue-700 border border-blue-200"
-    : t === "puntaje_bajo"
-    ? "bg-rose-50 text-rose-700 border border-rose-200"
-    : "bg-amber-50 text-amber-700 border border-amber-200";
+const tipoChip = (t: TipoNoti) => {
+  if (t === "inactividad" || t === "inactividad_30d") return "bg-blue-50 text-blue-700 border border-blue-200";
+  if (t === "puntaje_bajo" || t === "puntaje_bajo_inmediato") return "bg-rose-50 text-rose-700 border border-rose-200";
+  if (t === "area_critica") return "bg-red-50 text-red-700 border border-red-200";
+  if (t === "estudiante_alerta") return "bg-orange-50 text-orange-700 border border-orange-200";
+  return "bg-amber-50 text-amber-700 border border-amber-200";
+};
 
-const iconoDe = (t: TipoNoti) =>
-  t === "inactividad" ? (
-    <FaRegClock className="text-blue-600" />
-  ) : t === "puntaje_bajo" ? (
-    <FaExclamationTriangle className="text-rose-600" />
-  ) : (
-    <FaChartLine className="text-amber-600" />
-  );
+const iconoDe = (t: TipoNoti) => {
+  if (t === "inactividad" || t === "inactividad_30d") return <FaRegClock className="text-blue-600" />;
+  if (t === "puntaje_bajo" || t === "puntaje_bajo_inmediato") return <FaExclamationTriangle className="text-rose-600" />;
+  if (t === "area_critica") return <FaExclamationTriangle className="text-red-600" />;
+  if (t === "estudiante_alerta") return <FaBell className="text-orange-600" />;
+  return <FaChartLine className="text-amber-600" />;
+};
 
-const etiquetaDe = (t: TipoNoti) =>
-  t === "inactividad" ? "Inactividad" : t === "puntaje_bajo" ? "Puntaje Bajo" : "Progreso Lento";
+const etiquetaDe = (t: TipoNoti) => {
+  if (t === "inactividad" || t === "inactividad_30d") return "Inactividad";
+  if (t === "puntaje_bajo" || t === "puntaje_bajo_inmediato") return "Puntaje Bajo";
+  if (t === "area_critica") return "Área Crítica";
+  if (t === "estudiante_alerta") return "Estudiante en Alerta";
+  return "Progreso Lento";
+};
 
 const fmtFecha = (iso: string) =>
   new Date(iso).toLocaleDateString(undefined, { year: "numeric", month: "2-digit", day: "2-digit" });
@@ -59,6 +64,7 @@ const Notificaciones: React.FC = () => {
   const [notis, setNotis] = useState<Noti[]>(NOTI_INICIALES);
   const [tab, setTab] = useState<"todas" | "no_leidas" | TipoNoti>("todas");
   const [q, setQ] = useState("");
+  const [sseConectado, setSseConectado] = useState(false);
 
   useEffect(() => {
     const cargarNotificaciones = async () => {
@@ -106,6 +112,109 @@ const Notificaciones: React.FC = () => {
     };
 
     cargarNotificaciones();
+
+    // ========== CONEXIÓN SSE PARA NOTIFICACIONES EN TIEMPO REAL ==========
+    const token = localStorage.getItem("token");
+    if (!token) return;
+
+    console.log("[SSE] Conectando a notificaciones en tiempo real...");
+    
+    const eventSource = new EventSource(`${API_BASE}/admin/notificaciones/stream`, {
+      withCredentials: true,
+    });
+
+    // Alternativa: si EventSource no soporta headers, usar fetch con ReadableStream
+    // Pero EventSource es más simple y el token se puede pasar en el middleware
+
+    eventSource.onopen = () => {
+      console.log("[SSE] Conexión establecida con el servidor");
+      setSseConectado(true);
+    };
+
+    eventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        
+        // Ignorar mensajes de sistema (heartbeat, conexión)
+        if (data.tipo === 'conexion') {
+          console.log("[SSE] Conexión confirmada:", data.mensaje);
+          setSseConectado(true);
+          return;
+        }
+
+        console.log("[SSE] Nueva notificación recibida:", data);
+
+        // Mapear la notificación
+        const p = data.payload || {};
+        const nuevaNotificacion: Noti = {
+          id: data.id_notificacion || data.id,
+          tipo: (data.tipo || "inactividad") as TipoNoti,
+          titulo: data.titulo || p.titulo || "",
+          detalle: data.detalle || p.detalle || "",
+          fechaISO: data.created_at || data.createdAt || new Date().toISOString(),
+          leida: false,
+          area: p.area,
+          puntaje: typeof p.porcentaje === 'number' ? Math.round(p.porcentaje) : (typeof p.puntaje === 'number' ? Math.round(p.puntaje) : undefined),
+          estudiante: p.estudiante || p.nombre,
+          curso: p.curso,
+        };
+
+        // Agregar al inicio de la lista (sin duplicados)
+        setNotis((prev) => {
+          const existe = prev.some(n => n.id === nuevaNotificacion.id);
+          if (existe) return prev;
+          
+          const updated = [nuevaNotificacion, ...prev];
+          
+          // Emitir evento para actualizar el badge del Dashboard
+          const noLeidas = updated.filter(n => !n.leida).length;
+          window.dispatchEvent(new CustomEvent('notificaciones-actualizadas', { 
+            detail: { noLeidas } 
+          }));
+          
+          return updated;
+        });
+
+        // Mostrar notificación del navegador
+        if (Notification.permission === "granted") {
+          new Notification(nuevaNotificacion.titulo, {
+            body: nuevaNotificacion.detalle,
+            icon: "/vite.svg",
+            badge: "/vite.svg",
+            tag: String(nuevaNotificacion.id), // Evita duplicados
+          });
+        }
+
+        // Sonido opcional (descomenta si tienes un archivo de audio)
+        // try {
+        //   const audio = new Audio("/notification.mp3");
+        //   audio.volume = 0.3;
+        //   audio.play().catch(() => {});
+        // } catch {}
+
+      } catch (error) {
+        console.error("[SSE] Error procesando notificación:", error);
+      }
+    };
+
+    eventSource.onerror = (error) => {
+      console.error("[SSE] Error en la conexión:", error);
+      console.log("[SSE] Intentando reconectar...");
+      setSseConectado(false);
+    };
+
+    // Pedir permiso para notificaciones del navegador
+    if (Notification.permission === "default") {
+      Notification.requestPermission().then(permission => {
+        console.log("[Notifications] Permiso:", permission);
+      });
+    }
+
+    // Cleanup al desmontar el componente
+    return () => {
+      console.log("[SSE] Cerrando conexión");
+      eventSource.close();
+    };
   }, []);
 
   const contadores = useMemo(() => {
@@ -143,27 +252,172 @@ const Notificaciones: React.FC = () => {
     );
   }, [notis, tab, q]);
 
-  const marcarLeida = (id: Noti["id"]) =>
-    setNotis((arr) => arr.map((n) => (n.id === id ? { ...n, leida: true } : n)));
+  const marcarLeida = async (id: Noti["id"]) => {
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) return;
+
+      // Actualizar en el servidor
+      await fetch(`${API_BASE}/admin/notificaciones/marcar`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+          "ngrok-skip-browser-warning": "true",
+        },
+        body: JSON.stringify({ ids: [id] }),
+      });
+
+      // Actualizar localmente
+      setNotis((arr) => {
+        const updated = arr.map((n) => (n.id === id ? { ...n, leida: true } : n));
+        
+        // Emitir evento para actualizar el badge del Dashboard
+        const noLeidas = updated.filter(n => !n.leida).length;
+        window.dispatchEvent(new CustomEvent('notificaciones-actualizadas', { 
+          detail: { noLeidas } 
+        }));
+        
+        return updated;
+      });
+    } catch (error) {
+      console.error("Error marcando como leída:", error);
+    }
+  };
+
+  const marcarTodasLeidas = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) return;
+
+      const idsNoLeidas = notis.filter(n => !n.leida).map(n => n.id);
+      if (idsNoLeidas.length === 0) return;
+
+      await fetch(`${API_BASE}/admin/notificaciones/marcar`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+          "ngrok-skip-browser-warning": "true",
+        },
+        body: JSON.stringify({ ids: idsNoLeidas }),
+      });
+
+      setNotis((arr) => {
+        const updated = arr.map((n) => ({ ...n, leida: true }));
+        
+        // Emitir evento para actualizar el badge del Dashboard a 0
+        window.dispatchEvent(new CustomEvent('notificaciones-actualizadas', { 
+          detail: { noLeidas: 0 } 
+        }));
+        
+        return updated;
+      });
+    } catch (error) {
+      console.error("Error marcando todas como leídas:", error);
+    }
+  };
+
+  const limpiarTodas = () => {
+    if (window.confirm("¿Estás seguro de que quieres limpiar todas las notificaciones? Esta acción no se puede deshacer.")) {
+      setNotis([]);
+    }
+  };
 
   const fmtTiempo = (iso: string) => {
     const ahora = new Date();
     const fecha = new Date(iso);
     const diffMs = ahora.getTime() - fecha.getTime();
+    const diffSegundos = Math.floor(diffMs / 1000);
+    const diffMinutos = Math.floor(diffMs / (1000 * 60));
     const diffHoras = Math.floor(diffMs / (1000 * 60 * 60));
     const diffDias = Math.floor(diffMs / (1000 * 60 * 60 * 24));
     
-    if (diffDias > 0) return `Hace ${diffDias} día${diffDias > 1 ? 's' : ''}`;
-    if (diffHoras > 0) return `Hace ${diffHoras} hora${diffHoras > 1 ? 's' : ''}`;
-    return 'Hace unos momentos';
+    // Menos de 1 minuto
+    if (diffSegundos < 60) return 'Hace menos de 1 minuto';
+    
+    // Menos de 1 hora (mostrar minutos exactos)
+    if (diffMinutos < 60) return `Hace ${diffMinutos} minuto${diffMinutos !== 1 ? 's' : ''}`;
+    
+    // Menos de 24 horas (mostrar horas exactas)
+    if (diffHoras < 24) return `Hace ${diffHoras} hora${diffHoras !== 1 ? 's' : ''}`;
+    
+    // Menos de 7 días (mostrar días exactos)
+    if (diffDias < 7) return `Hace ${diffDias} día${diffDias !== 1 ? 's' : ''}`;
+    
+    // Más de 7 días (mostrar fecha específica)
+    return fecha.toLocaleDateString('es-ES', { 
+      day: 'numeric', 
+      month: 'short',
+      year: fecha.getFullYear() !== ahora.getFullYear() ? 'numeric' : undefined 
+    });
+  };
+
+  // Helper: Verificar si una notificación es nueva (menos de 1 hora)
+  const esNueva = (fechaISO: string) => {
+    const ahora = new Date();
+    const fecha = new Date(fechaISO);
+    const diffMs = ahora.getTime() - fecha.getTime();
+    const diffMinutos = diffMs / (1000 * 60);
+    return diffMinutos < 60; // Nueva si tiene menos de 1 hora
+  };
+
+  // Helper: Agrupar notificaciones por fecha
+  const agruparPorFecha = (notificaciones: Noti[]) => {
+    const ahora = new Date();
+    const hoy = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate());
+    const ayer = new Date(hoy.getTime() - 24 * 60 * 60 * 1000);
+    const semana = new Date(hoy.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+    const grupos: { [key: string]: Noti[] } = {
+      'Hoy': [],
+      'Ayer': [],
+      'Esta semana': [],
+      'Anteriores': []
+    };
+
+    notificaciones.forEach(n => {
+      const fecha = new Date(n.fechaISO);
+      const fechaSinHora = new Date(fecha.getFullYear(), fecha.getMonth(), fecha.getDate());
+
+      if (fechaSinHora.getTime() === hoy.getTime()) {
+        grupos['Hoy'].push(n);
+      } else if (fechaSinHora.getTime() === ayer.getTime()) {
+        grupos['Ayer'].push(n);
+      } else if (fecha >= semana) {
+        grupos['Esta semana'].push(n);
+      } else {
+        grupos['Anteriores'].push(n);
+      }
+    });
+
+    return grupos;
   };
 
   return (
     <div className="p-0">
       {/* Header */}
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Notificaciones</h1>
-        <p className="text-sm text-gray-600 mt-1">Centro de alertas y comunicaciones del sistema</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Notificaciones</h1>
+            <p className="text-sm text-gray-600 mt-1">Centro de alertas y comunicaciones del sistema</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+              sseConectado 
+                ? 'bg-green-50 text-green-700 border border-green-200' 
+                : 'bg-yellow-50 text-yellow-700 border border-yellow-200'
+            }`}>
+              <span className={`w-2 h-2 rounded-full ${
+                sseConectado 
+                  ? 'bg-green-500 animate-pulse' 
+                  : 'bg-yellow-500 animate-pulse'
+              }`}></span>
+              {sseConectado ? 'En Vivo' : 'Reconectando...'}
+            </div>
+          </div>
+        </div>
       </div>
 
       <div className="flex items-center justify-between mb-4">
@@ -172,50 +426,101 @@ const Notificaciones: React.FC = () => {
           <TabBtn active={tab === "no_leidas"} onClick={() => setTab("no_leidas")} label={`No Leídas (${contadores.unread})`} />
         </div>
         <div className="flex gap-2">
-          <button className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700 transition-colors">
+          <button 
+            onClick={marcarTodasLeidas}
+            disabled={contadores.unread === 0}
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
             Marcar todas como leídas
           </button>
-          <button className="bg-red-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-red-700 transition-colors">
+          <button 
+            onClick={limpiarTodas}
+            className="bg-red-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-red-700 transition-colors"
+          >
             Limpiar todas
           </button>
         </div>
       </div>
 
-      {/* Lista */}
-      <div className="space-y-3">
+      {/* Lista Agrupada por Fecha */}
+      <div className="space-y-6">
         {visibles.length === 0 ? (
           <div className="text-center py-12 text-gray-500 text-sm">
             Sin notificaciones
           </div>
         ) : (
-          visibles.map((n) => {
-            const iconColor = n.tipo === 'puntaje_bajo' || n.tipo === 'inactividad' ? '#f59e0b' : '#8b5cf6';
-            return (
-              <div key={n.id} className="bg-white rounded-lg border border-gray-100 p-4 shadow-sm">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-start gap-3 flex-1">
-                    <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: iconColor, opacity: 0.2 }}>
-                      {iconoDe(n.tipo)}
-                    </div>
-                    <div className="flex-1">
-                      <h4 className="font-semibold text-gray-900 text-sm">{n.titulo}</h4>
-                      <p className="text-sm text-gray-700 mt-1">{n.estudiante || n.area || '-'}{n.curso ? ` - ${n.curso}` : ''}</p>
-                      <p className="text-xs text-gray-600 mt-1">{n.detalle}</p>
-                      <p className="text-xs text-gray-500 mt-1">{fmtTiempo(n.fechaISO)}</p>
-                    </div>
+          (() => {
+            const grupos = agruparPorFecha(visibles);
+            return Object.entries(grupos).map(([grupo, notifs]) => {
+              if (notifs.length === 0) return null;
+              
+              return (
+                <div key={grupo}>
+                  {/* Encabezado de grupo */}
+                  <div className="flex items-center gap-2 mb-3">
+                    <h3 className="text-sm font-semibold text-gray-700">{grupo}</h3>
+                    <div className="flex-1 h-px bg-gray-200"></div>
+                    <span className="text-xs text-gray-500">{notifs.length}</span>
                   </div>
-                  <div className="flex items-center gap-1">
-                    <button className="text-gray-400 hover:text-gray-600">
-                      <span className="text-lg">&gt;</span>
-                    </button>
-                    <button className="text-gray-400 hover:text-gray-600">
-                      <span className="text-lg">&times;</span>
-                    </button>
+                  
+                  {/* Notificaciones del grupo */}
+                  <div className="space-y-2">
+                    {notifs.map((n) => {
+                      const iconColor = n.tipo === 'puntaje_bajo' || n.tipo === 'inactividad' ? '#f59e0b' : '#8b5cf6';
+                      const nueva = esNueva(n.fechaISO);
+                      
+                      return (
+                        <div 
+                          key={n.id} 
+                          className={`bg-white rounded-lg p-4 shadow-sm transition-all ${
+                            nueva 
+                              ? 'border-2 border-green-300 ring-2 ring-green-100' 
+                              : 'border border-gray-100'
+                          } ${!n.leida ? 'bg-blue-50/30' : ''}`}
+                        >
+                          <div className="flex items-start justify-between">
+                            <div className="flex items-start gap-3 flex-1">
+                              <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: iconColor, opacity: 0.2 }}>
+                                {iconoDe(n.tipo)}
+                              </div>
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <h4 className="font-semibold text-gray-900 text-sm">{n.titulo}</h4>
+                                  {nueva && (
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700 border border-green-200">
+                                      ✨ Nueva
+                                    </span>
+                                  )}
+                                  {!n.leida && !nueva && (
+                                    <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                                  )}
+                                </div>
+                                <p className="text-sm text-gray-700 mt-1">{n.estudiante || n.area || '-'}{n.curso ? ` - ${n.curso}` : ''}</p>
+                                <p className="text-xs text-gray-600 mt-1">{n.detalle}</p>
+                                <p className="text-xs text-gray-500 mt-1">{fmtTiempo(n.fechaISO)}</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <button 
+                                onClick={() => marcarLeida(n.id)}
+                                className="text-gray-400 hover:text-blue-600 transition-colors"
+                                title="Marcar como leída"
+                              >
+                                <span className="text-lg">✓</span>
+                              </button>
+                              <button className="text-gray-400 hover:text-red-600 transition-colors" title="Eliminar">
+                                <span className="text-lg">&times;</span>
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
-              </div>
-            );
-          })
+              );
+            });
+          })()
         )}
       </div>
     </div>
