@@ -148,6 +148,18 @@ const Dashboard: React.FC = () => {
 
     cargarPerfil();
     cargarNotificaciones();
+
+    // Escuchar eventos de actualización de notificaciones
+    const handleNotificacionesActualizadas = (e: any) => {
+      const { noLeidas } = e.detail;
+      setNotificacionesCount(noLeidas);
+    };
+
+    window.addEventListener('notificaciones-actualizadas', handleNotificacionesActualizadas);
+
+    return () => {
+      window.removeEventListener('notificaciones-actualizadas', handleNotificacionesActualizadas);
+    };
   }, [navigate]);
 
   // Escuchar cambios de avatar en LS para ESTA institución
