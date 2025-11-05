@@ -6,6 +6,7 @@ import {
   FaExclamationTriangle,
   FaChartLine,
   FaSearch,
+  FaSpinner,
 } from "react-icons/fa";
 
 const RAW_BASE =
@@ -20,7 +21,7 @@ type Noti = {
   tipo: TipoNoti;
   titulo: string;
   detalle: string;
-  fechaISO: string;   // ISO para ordenar
+  fechaISO: string;
   leida?: boolean;
   area?: string;
   puntaje?: number;
@@ -28,18 +29,16 @@ type Noti = {
   curso?: string;
 };
 
-/* SIN datos (conectarás backend luego) */
-const NOTI_INICIALES: Noti[] = [];
-
-/* ===================== UI helpers ===================== */
-const tipoChip = (t: TipoNoti) => {
-  if (t === "inactividad" || t === "inactividad_30d") return "bg-blue-50 text-blue-700 border border-blue-200";
-  if (t === "puntaje_bajo" || t === "puntaje_bajo_inmediato") return "bg-rose-50 text-rose-700 border border-rose-200";
-  if (t === "area_critica") return "bg-red-50 text-red-700 border border-red-200";
-  if (t === "estudiante_alerta") return "bg-orange-50 text-orange-700 border border-orange-200";
-  return "bg-amber-50 text-amber-700 border border-amber-200";
+type Paginacion = {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+  hasNextPage: boolean;
+  hasPrevPage: boolean;
 };
 
+/* ===================== UI helpers ===================== */
 const iconoDe = (t: TipoNoti) => {
   if (t === "inactividad" || t === "inactividad_30d") return <FaRegClock className="text-blue-600" />;
   if (t === "puntaje_bajo" || t === "puntaje_bajo_inmediato") return <FaExclamationTriangle className="text-rose-600" />;
@@ -48,72 +47,88 @@ const iconoDe = (t: TipoNoti) => {
   return <FaChartLine className="text-amber-600" />;
 };
 
-const etiquetaDe = (t: TipoNoti) => {
-  if (t === "inactividad" || t === "inactividad_30d") return "Inactividad";
-  if (t === "puntaje_bajo" || t === "puntaje_bajo_inmediato") return "Puntaje Bajo";
-  if (t === "area_critica") return "Área Crítica";
-  if (t === "estudiante_alerta") return "Estudiante en Alerta";
-  return "Progreso Lento";
-};
-
-const fmtFecha = (iso: string) =>
-  new Date(iso).toLocaleDateString(undefined, { year: "numeric", month: "2-digit", day: "2-digit" });
-
 /* ===================== Componente ===================== */
 const Notificaciones: React.FC = () => {
-  const [notis, setNotis] = useState<Noti[]>(NOTI_INICIALES);
+  const [notis, setNotis] = useState<Noti[]>([]);
   const [tab, setTab] = useState<"todas" | "no_leidas" | TipoNoti>("todas");
   const [q, setQ] = useState("");
   const [sseConectado, setSseConectado] = useState(false);
+  const [cargando, setCargando] = useState(false);
+  const [paginacion, setPaginacion] = useState<Paginacion | null>(null);
+  const [paginaActual, setPaginaActual] = useState(1);
 
-  useEffect(() => {
-    const cargarNotificaciones = async () => {
-      try {
-        const token = localStorage.getItem("token");
-        if (!token) return;
+  // Cargar notificaciones paginadas
+  const cargarNotificaciones = async (page: number = 1, append: boolean = false) => {
+    try {
+      setCargando(true);
+      const token = localStorage.getItem("token");
+      if (!token) return;
 
-        const res = await fetch(`${API_BASE}/admin/notificaciones`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "ngrok-skip-browser-warning": "true",
-          },
-          cache: "no-store",
+      // Construir query params
+      const params = new URLSearchParams({
+        page: String(page),
+        limit: '50',
+      });
+
+      if (tab === 'no_leidas') params.append('leida', 'false');
+      else if (tab !== 'todas') params.append('tipo', tab);
+
+      const res = await fetch(`${API_BASE}/admin/notificaciones?${params}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "ngrok-skip-browser-warning": "true",
+        },
+        cache: "no-store",
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        const notifs = data.notificaciones || [];
+        
+        const mapeadas: Noti[] = notifs.map((n: any) => {
+          const p = n.payload || {};
+          const area = p.area || n.area || undefined;
+          const porcentaje = p.porcentaje || p.promedio || p.puntaje || n.porcentaje || n.puntaje;
+          const estudiante = p.estudiante || p.nombre || n.estudiante;
+          const curso = p.curso || n.curso;
+          return {
+            id: n.id_notificacion || n.id,
+            tipo: (n.tipo || p.tipo || "inactividad") as TipoNoti,
+            titulo: n.titulo || p.titulo || n.mensaje || "",
+            detalle: n.detalle || p.detalle || n.descripcion || "",
+            fechaISO: n.created_at || n.createdAt || n.fecha || new Date().toISOString(),
+            leida: !!(n.leida),
+            area,
+            puntaje: typeof porcentaje === 'number' ? Math.round(porcentaje) : undefined,
+            estudiante,
+            curso,
+          }
         });
-
-        if (res.ok) {
-          const data = await res.json();
-          const notifs = Array.isArray(data) ? data : data?.notificaciones || [];
-          
-          const mapeadas: Noti[] = notifs.map((n: any) => {
-            const p = n.payload || {};
-            const area = p.area || n.area || undefined;
-            const porcentaje = p.porcentaje || p.promedio || p.puntaje || n.porcentaje || n.puntaje;
-            const estudiante = p.estudiante || p.nombre || n.estudiante;
-            const curso = p.curso || n.curso;
-            return {
-              id: n.id_notificacion || n.id,
-              tipo: (n.tipo || p.tipo || "inactividad") as TipoNoti,
-              titulo: n.titulo || p.titulo || n.mensaje || "",
-              detalle: n.detalle || p.detalle || n.descripcion || "",
-              fechaISO: n.created_at || n.createdAt || n.fecha || new Date().toISOString(),
-              leida: !!(n.leida),
-              area,
-              puntaje: typeof porcentaje === 'number' ? Math.round(porcentaje) : undefined,
-              estudiante,
-              curso,
-            }
-          });
-          
+        
+        if (append) {
+          setNotis((prev) => [...prev, ...mapeadas]);
+        } else {
           setNotis(mapeadas);
         }
-      } catch (error) {
-        console.error("Error cargando notificaciones:", error);
+        
+        setPaginacion(data.paginacion || null);
+        setPaginaActual(page);
       }
-    };
+    } catch (error) {
+      console.error("Error cargando notificaciones:", error);
+    } finally {
+      setCargando(false);
+    }
+  };
 
-    cargarNotificaciones();
+  // Cargar al montar y cuando cambia el tab
+  useEffect(() => {
+    setPaginaActual(1);
+    cargarNotificaciones(1, false);
+  }, [tab]);
 
-    // ========== CONEXIÓN SSE PARA NOTIFICACIONES EN TIEMPO REAL ==========
+  // SSE para tiempo real
+  useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token) return;
 
@@ -122,9 +137,6 @@ const Notificaciones: React.FC = () => {
     const eventSource = new EventSource(`${API_BASE}/admin/notificaciones/stream`, {
       withCredentials: true,
     });
-
-    // Alternativa: si EventSource no soporta headers, usar fetch con ReadableStream
-    // Pero EventSource es más simple y el token se puede pasar en el middleware
 
     eventSource.onopen = () => {
       console.log("[SSE] Conexión establecida con el servidor");
@@ -135,7 +147,6 @@ const Notificaciones: React.FC = () => {
       try {
         const data = JSON.parse(event.data);
         
-        // Ignorar mensajes de sistema (heartbeat, conexión)
         if (data.tipo === 'conexion') {
           console.log("[SSE] Conexión confirmada:", data.mensaje);
           setSseConectado(true);
@@ -144,7 +155,6 @@ const Notificaciones: React.FC = () => {
 
         console.log("[SSE] Nueva notificación recibida:", data);
 
-        // Mapear la notificación
         const p = data.payload || {};
         const nuevaNotificacion: Noti = {
           id: data.id_notificacion || data.id,
@@ -159,14 +169,12 @@ const Notificaciones: React.FC = () => {
           curso: p.curso,
         };
 
-        // Agregar al inicio de la lista (sin duplicados)
         setNotis((prev) => {
           const existe = prev.some(n => n.id === nuevaNotificacion.id);
           if (existe) return prev;
           
           const updated = [nuevaNotificacion, ...prev];
           
-          // Emitir evento para actualizar el badge del Dashboard
           const noLeidas = updated.filter(n => !n.leida).length;
           window.dispatchEvent(new CustomEvent('notificaciones-actualizadas', { 
             detail: { noLeidas } 
@@ -175,23 +183,14 @@ const Notificaciones: React.FC = () => {
           return updated;
         });
 
-        // Mostrar notificación del navegador
         if (Notification.permission === "granted") {
           new Notification(nuevaNotificacion.titulo, {
             body: nuevaNotificacion.detalle,
             icon: "/vite.svg",
             badge: "/vite.svg",
-            tag: String(nuevaNotificacion.id), // Evita duplicados
+            tag: String(nuevaNotificacion.id),
           });
         }
-
-        // Sonido opcional (descomenta si tienes un archivo de audio)
-        // try {
-        //   const audio = new Audio("/notification.mp3");
-        //   audio.volume = 0.3;
-        //   audio.play().catch(() => {});
-        // } catch {}
-
       } catch (error) {
         console.error("[SSE] Error procesando notificación:", error);
       }
@@ -203,14 +202,12 @@ const Notificaciones: React.FC = () => {
       setSseConectado(false);
     };
 
-    // Pedir permiso para notificaciones del navegador
     if (Notification.permission === "default") {
       Notification.requestPermission().then(permission => {
         console.log("[Notifications] Permiso:", permission);
       });
     }
 
-    // Cleanup al desmontar el componente
     return () => {
       console.log("[SSE] Cerrando conexión");
       eventSource.close();
@@ -218,46 +215,17 @@ const Notificaciones: React.FC = () => {
   }, []);
 
   const contadores = useMemo(() => {
-    let ina = 0,
-      pb = 0,
-      pl = 0,
-      unread = 0;
-    for (const n of notis) {
-      if (!n.leida) unread++;
-      if (n.tipo === "inactividad") ina++;
-      if (n.tipo === "puntaje_bajo") pb++;
-      if (n.tipo === "progreso_lento") pl++;
-    }
-    return { ina, pb, pl, unread, total: notis.length };
-  }, [notis]);
-
-  const visibles = useMemo(() => {
-    let list = [...notis];
-    if (tab === "no_leidas") list = list.filter((n) => !n.leida);
-    else if (tab !== "todas") list = list.filter((n) => n.tipo === tab);
-
-    if (q.trim()) {
-      const s = q.toLowerCase();
-      list = list.filter(
-        (n) =>
-          n.titulo.toLowerCase().includes(s) ||
-          n.detalle.toLowerCase().includes(s) ||
-          (n.estudiante || "").toLowerCase().includes(s) ||
-          (n.curso || "").toLowerCase().includes(s) ||
-          (n.area || "").toLowerCase().includes(s)
-      );
-    }
-    return list.sort(
-      (a, b) => new Date(b.fechaISO).getTime() - new Date(a.fechaISO).getTime()
-    );
-  }, [notis, tab, q]);
+    return {
+      total: paginacion?.total || notis.length,
+      unread: notis.filter(n => !n.leida).length,
+    };
+  }, [notis, paginacion]);
 
   const marcarLeida = async (id: Noti["id"]) => {
     try {
       const token = localStorage.getItem("token");
       if (!token) return;
 
-      // Actualizar en el servidor
       await fetch(`${API_BASE}/admin/notificaciones/marcar`, {
         method: "POST",
         headers: {
@@ -268,11 +236,9 @@ const Notificaciones: React.FC = () => {
         body: JSON.stringify({ ids: [id] }),
       });
 
-      // Actualizar localmente
       setNotis((arr) => {
         const updated = arr.map((n) => (n.id === id ? { ...n, leida: true } : n));
         
-        // Emitir evento para actualizar el badge del Dashboard
         const noLeidas = updated.filter(n => !n.leida).length;
         window.dispatchEvent(new CustomEvent('notificaciones-actualizadas', { 
           detail: { noLeidas } 
@@ -306,7 +272,6 @@ const Notificaciones: React.FC = () => {
       setNotis((arr) => {
         const updated = arr.map((n) => ({ ...n, leida: true }));
         
-        // Emitir evento para actualizar el badge del Dashboard a 0
         window.dispatchEvent(new CustomEvent('notificaciones-actualizadas', { 
           detail: { noLeidas: 0 } 
         }));
@@ -318,9 +283,9 @@ const Notificaciones: React.FC = () => {
     }
   };
 
-  const limpiarTodas = () => {
-    if (window.confirm("¿Estás seguro de que quieres limpiar todas las notificaciones? Esta acción no se puede deshacer.")) {
-      setNotis([]);
+  const cargarMas = () => {
+    if (paginacion?.hasNextPage && !cargando) {
+      cargarNotificaciones(paginaActual + 1, true);
     }
   };
 
@@ -333,19 +298,11 @@ const Notificaciones: React.FC = () => {
     const diffHoras = Math.floor(diffMs / (1000 * 60 * 60));
     const diffDias = Math.floor(diffMs / (1000 * 60 * 60 * 24));
     
-    // Menos de 1 minuto
     if (diffSegundos < 60) return 'Hace menos de 1 minuto';
-    
-    // Menos de 1 hora (mostrar minutos exactos)
     if (diffMinutos < 60) return `Hace ${diffMinutos} minuto${diffMinutos !== 1 ? 's' : ''}`;
-    
-    // Menos de 24 horas (mostrar horas exactas)
     if (diffHoras < 24) return `Hace ${diffHoras} hora${diffHoras !== 1 ? 's' : ''}`;
-    
-    // Menos de 7 días (mostrar días exactos)
     if (diffDias < 7) return `Hace ${diffDias} día${diffDias !== 1 ? 's' : ''}`;
     
-    // Más de 7 días (mostrar fecha específica)
     return fecha.toLocaleDateString('es-ES', { 
       day: 'numeric', 
       month: 'short',
@@ -353,45 +310,12 @@ const Notificaciones: React.FC = () => {
     });
   };
 
-  // Helper: Verificar si una notificación es nueva (menos de 1 hora)
   const esNueva = (fechaISO: string) => {
     const ahora = new Date();
     const fecha = new Date(fechaISO);
     const diffMs = ahora.getTime() - fecha.getTime();
     const diffMinutos = diffMs / (1000 * 60);
-    return diffMinutos < 60; // Nueva si tiene menos de 1 hora
-  };
-
-  // Helper: Agrupar notificaciones por fecha
-  const agruparPorFecha = (notificaciones: Noti[]) => {
-    const ahora = new Date();
-    const hoy = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate());
-    const ayer = new Date(hoy.getTime() - 24 * 60 * 60 * 1000);
-    const semana = new Date(hoy.getTime() - 7 * 24 * 60 * 60 * 1000);
-
-    const grupos: { [key: string]: Noti[] } = {
-      'Hoy': [],
-      'Ayer': [],
-      'Esta semana': [],
-      'Anteriores': []
-    };
-
-    notificaciones.forEach(n => {
-      const fecha = new Date(n.fechaISO);
-      const fechaSinHora = new Date(fecha.getFullYear(), fecha.getMonth(), fecha.getDate());
-
-      if (fechaSinHora.getTime() === hoy.getTime()) {
-        grupos['Hoy'].push(n);
-      } else if (fechaSinHora.getTime() === ayer.getTime()) {
-        grupos['Ayer'].push(n);
-      } else if (fecha >= semana) {
-        grupos['Esta semana'].push(n);
-      } else {
-        grupos['Anteriores'].push(n);
-      }
-    });
-
-    return grupos;
+    return diffMinutos < 60;
   };
 
   return (
@@ -401,7 +325,9 @@ const Notificaciones: React.FC = () => {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Notificaciones</h1>
-            <p className="text-sm text-gray-600 mt-1">Centro de alertas y comunicaciones del sistema</p>
+            <p className="text-sm text-gray-600 mt-1">
+              {paginacion ? `${paginacion.total} notificaciones totales` : 'Cargando...'}
+            </p>
           </div>
           <div className="flex items-center gap-2">
             <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
@@ -433,96 +359,93 @@ const Notificaciones: React.FC = () => {
           >
             Marcar todas como leídas
           </button>
-          <button 
-            onClick={limpiarTodas}
-            className="bg-red-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-red-700 transition-colors"
-          >
-            Limpiar todas
-          </button>
         </div>
       </div>
 
-      {/* Lista Agrupada por Fecha */}
-      <div className="space-y-6">
-        {visibles.length === 0 ? (
+      {/* Lista */}
+      <div className="space-y-2">
+        {notis.length === 0 && !cargando ? (
           <div className="text-center py-12 text-gray-500 text-sm">
             Sin notificaciones
           </div>
         ) : (
-          (() => {
-            const grupos = agruparPorFecha(visibles);
-            return Object.entries(grupos).map(([grupo, notifs]) => {
-              if (notifs.length === 0) return null;
-              
-              return (
-                <div key={grupo}>
-                  {/* Encabezado de grupo */}
-                  <div className="flex items-center gap-2 mb-3">
-                    <h3 className="text-sm font-semibold text-gray-700">{grupo}</h3>
-                    <div className="flex-1 h-px bg-gray-200"></div>
-                    <span className="text-xs text-gray-500">{notifs.length}</span>
+          notis.map((n) => {
+            const iconColor = n.tipo === 'puntaje_bajo' || n.tipo === 'inactividad' ? '#f59e0b' : '#8b5cf6';
+            const nueva = esNueva(n.fechaISO);
+            
+            return (
+              <div 
+                key={n.id} 
+                className={`bg-white rounded-lg p-4 shadow-sm transition-all ${
+                  nueva 
+                    ? 'border-2 border-green-300 ring-2 ring-green-100' 
+                    : 'border border-gray-100'
+                } ${!n.leida ? 'bg-blue-50/30' : ''}`}
+              >
+                <div className="flex items-start justify-between">
+                  <div className="flex items-start gap-3 flex-1">
+                    <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: iconColor, opacity: 0.2 }}>
+                      {iconoDe(n.tipo)}
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h4 className="font-semibold text-gray-900 text-sm">{n.titulo}</h4>
+                        {nueva && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700 border border-green-200">
+                            ✨ Nueva
+                          </span>
+                        )}
+                        {!n.leida && !nueva && (
+                          <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                        )}
+                      </div>
+                      <p className="text-sm text-gray-700 mt-1">{n.estudiante || n.area || '-'}{n.curso ? ` - ${n.curso}` : ''}</p>
+                      <p className="text-xs text-gray-600 mt-1">{n.detalle}</p>
+                      <p className="text-xs text-gray-500 mt-1">{fmtTiempo(n.fechaISO)}</p>
+                    </div>
                   </div>
-                  
-                  {/* Notificaciones del grupo */}
-                  <div className="space-y-2">
-                    {notifs.map((n) => {
-                      const iconColor = n.tipo === 'puntaje_bajo' || n.tipo === 'inactividad' ? '#f59e0b' : '#8b5cf6';
-                      const nueva = esNueva(n.fechaISO);
-                      
-                      return (
-                        <div 
-                          key={n.id} 
-                          className={`bg-white rounded-lg p-4 shadow-sm transition-all ${
-                            nueva 
-                              ? 'border-2 border-green-300 ring-2 ring-green-100' 
-                              : 'border border-gray-100'
-                          } ${!n.leida ? 'bg-blue-50/30' : ''}`}
-                        >
-                          <div className="flex items-start justify-between">
-                            <div className="flex items-start gap-3 flex-1">
-                              <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: iconColor, opacity: 0.2 }}>
-                                {iconoDe(n.tipo)}
-                              </div>
-                              <div className="flex-1">
-                                <div className="flex items-center gap-2 mb-1">
-                                  <h4 className="font-semibold text-gray-900 text-sm">{n.titulo}</h4>
-                                  {nueva && (
-                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700 border border-green-200">
-                                      ✨ Nueva
-                                    </span>
-                                  )}
-                                  {!n.leida && !nueva && (
-                                    <span className="w-2 h-2 rounded-full bg-blue-500"></span>
-                                  )}
-                                </div>
-                                <p className="text-sm text-gray-700 mt-1">{n.estudiante || n.area || '-'}{n.curso ? ` - ${n.curso}` : ''}</p>
-                                <p className="text-xs text-gray-600 mt-1">{n.detalle}</p>
-                                <p className="text-xs text-gray-500 mt-1">{fmtTiempo(n.fechaISO)}</p>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <button 
-                                onClick={() => marcarLeida(n.id)}
-                                className="text-gray-400 hover:text-blue-600 transition-colors"
-                                title="Marcar como leída"
-                              >
-                                <span className="text-lg">✓</span>
-                              </button>
-                              <button className="text-gray-400 hover:text-red-600 transition-colors" title="Eliminar">
-                                <span className="text-lg">&times;</span>
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
+                  <div className="flex items-center gap-1">
+                    <button 
+                      onClick={() => marcarLeida(n.id)}
+                      className="text-gray-400 hover:text-blue-600 transition-colors"
+                      title="Marcar como leída"
+                    >
+                      <span className="text-lg">✓</span>
+                    </button>
                   </div>
                 </div>
-              );
-            });
-          })()
+              </div>
+            );
+          })
         )}
       </div>
+
+      {/* Botón cargar más */}
+      {paginacion && paginacion.hasNextPage && (
+        <div className="mt-6 text-center">
+          <button
+            onClick={cargarMas}
+            disabled={cargando}
+            className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-6 py-3 rounded-lg font-medium transition-colors disabled:opacity-50 flex items-center gap-2 mx-auto"
+          >
+            {cargando ? (
+              <>
+                <FaSpinner className="animate-spin" />
+                Cargando...
+              </>
+            ) : (
+              `Cargar más (${paginacion.total - notis.length} restantes)`
+            )}
+          </button>
+        </div>
+      )}
+
+      {/* Info de paginación */}
+      {paginacion && (
+        <div className="mt-4 text-center text-xs text-gray-500">
+          Mostrando {notis.length} de {paginacion.total} notificaciones
+        </div>
+      )}
     </div>
   );
 };
@@ -542,13 +465,5 @@ const TabBtn: React.FC<{ active: boolean; label: string; onClick: () => void }> 
     {label}
   </button>
 );
-
-const Meta: React.FC<{ label: string; value?: string }> = ({ label, value }) =>
-  value ? (
-    <div>
-      <div className="text-xs text-gray-500">{label}:</div>
-      <div className="text-gray-800">{value}</div>
-    </div>
-  ) : null;
 
 export default Notificaciones;
