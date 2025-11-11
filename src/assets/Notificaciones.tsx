@@ -1,5 +1,5 @@
 // src/assets/Notificaciones.tsx
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useMemo, useState, useEffect, useRef } from "react";
 import {
   FaBell,
   FaRegClock,
@@ -7,6 +7,12 @@ import {
   FaChartLine,
   FaSearch,
   FaSpinner,
+  FaTrash,
+  FaCheckCircle,
+  FaFilter,
+  FaTimes,
+  FaVolumeMute,
+  FaVolumeUp,
 } from "react-icons/fa";
 
 const RAW_BASE =
@@ -39,23 +45,105 @@ type Paginacion = {
 };
 
 /* ===================== UI helpers ===================== */
-const iconoDe = (t: TipoNoti) => {
-  if (t === "inactividad" || t === "inactividad_30d") return <FaRegClock className="text-blue-600" />;
-  if (t === "puntaje_bajo" || t === "puntaje_bajo_inmediato") return <FaExclamationTriangle className="text-rose-600" />;
-  if (t === "area_critica") return <FaExclamationTriangle className="text-red-600" />;
-  if (t === "estudiante_alerta") return <FaBell className="text-orange-600" />;
-  return <FaChartLine className="text-amber-600" />;
+const configTipo = (t: TipoNoti) => {
+  const configs = {
+    inactividad: {
+      icon: <FaRegClock />,
+      color: "blue",
+      bgColor: "bg-blue-50",
+      borderColor: "border-blue-200",
+      textColor: "text-blue-700",
+      iconBg: "bg-blue-100",
+      label: "Inactividad"
+    },
+    inactividad_30d: {
+      icon: <FaRegClock />,
+      color: "indigo",
+      bgColor: "bg-indigo-50",
+      borderColor: "border-indigo-200",
+      textColor: "text-indigo-700",
+      iconBg: "bg-indigo-100",
+      label: "Inactividad 30d"
+    },
+    puntaje_bajo: {
+      icon: <FaExclamationTriangle />,
+      color: "rose",
+      bgColor: "bg-rose-50",
+      borderColor: "border-rose-200",
+      textColor: "text-rose-700",
+      iconBg: "bg-rose-100",
+      label: "Puntaje Bajo"
+    },
+    puntaje_bajo_inmediato: {
+      icon: <FaExclamationTriangle />,
+      color: "red",
+      bgColor: "bg-red-50",
+      borderColor: "border-red-200",
+      textColor: "text-red-700",
+      iconBg: "bg-red-100",
+      label: "Puntaje Crítico"
+    },
+    area_critica: {
+      icon: <FaExclamationTriangle />,
+      color: "orange",
+      bgColor: "bg-orange-50",
+      borderColor: "border-orange-200",
+      textColor: "text-orange-700",
+      iconBg: "bg-orange-100",
+      label: "Área Crítica"
+    },
+    estudiante_alerta: {
+      icon: <FaBell />,
+      color: "amber",
+      bgColor: "bg-amber-50",
+      borderColor: "border-amber-200",
+      textColor: "text-amber-700",
+      iconBg: "bg-amber-100",
+      label: "Alerta Estudiante"
+    },
+    progreso_lento: {
+      icon: <FaChartLine />,
+      color: "purple",
+      bgColor: "bg-purple-50",
+      borderColor: "border-purple-200",
+      textColor: "text-purple-700",
+      iconBg: "bg-purple-100",
+      label: "Progreso Lento"
+    },
+  };
+  return configs[t] || configs.inactividad;
 };
 
 /* ===================== Componente ===================== */
 const Notificaciones: React.FC = () => {
   const [notis, setNotis] = useState<Noti[]>([]);
-  const [tab, setTab] = useState<"todas" | "no_leidas" | TipoNoti>("todas");
+  const [tab, setTab] = useState<"todas" | "no_leidas">("todas");
+  const [filtroTipo, setFiltroTipo] = useState<TipoNoti | "todos">("todos");
   const [q, setQ] = useState("");
   const [sseConectado, setSseConectado] = useState(false);
   const [cargando, setCargando] = useState(false);
   const [paginacion, setPaginacion] = useState<Paginacion | null>(null);
   const [paginaActual, setPaginaActual] = useState(1);
+  const [sonidoActivo, setSonidoActivo] = useState(true);
+  const [mostrarFiltros, setMostrarFiltros] = useState(false);
+  const [toast, setToast] = useState<{mensaje: string, tipo: 'success' | 'error'} | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Sonido de notificación (opcional)
+  useEffect(() => {
+    audioRef.current = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBjGJ0fPTgjMGHm7A7+OZUQ0PV6vo7aNaFAtBm9/zvWwi');
+  }, []);
+
+  const reproducirSonido = () => {
+    if (sonidoActivo && audioRef.current) {
+      audioRef.current.play().catch(() => {/* ignore */});
+    }
+  };
+
+  const mostrarToast = (mensaje: string, tipo: 'success' | 'error' = 'success') => {
+    setToast({ mensaje, tipo });
+    setTimeout(() => setToast(null), 3000);
+  };
 
   // Cargar notificaciones paginadas
   const cargarNotificaciones = async (page: number = 1, append: boolean = false) => {
@@ -64,14 +152,13 @@ const Notificaciones: React.FC = () => {
       const token = localStorage.getItem("token");
       if (!token) return;
 
-      // Construir query params
       const params = new URLSearchParams({
         page: String(page),
         limit: '50',
       });
 
       if (tab === 'no_leidas') params.append('leida', 'false');
-      else if (tab !== 'todas') params.append('tipo', tab);
+      if (filtroTipo !== 'todos') params.append('tipo', filtroTipo);
 
       const res = await fetch(`${API_BASE}/admin/notificaciones?${params}`, {
         headers: {
@@ -116,16 +203,17 @@ const Notificaciones: React.FC = () => {
       }
     } catch (error) {
       console.error("Error cargando notificaciones:", error);
+      mostrarToast("Error al cargar notificaciones", "error");
     } finally {
       setCargando(false);
     }
   };
 
-  // Cargar al montar y cuando cambia el tab
+  // Cargar al montar y cuando cambia el tab o filtro
   useEffect(() => {
     setPaginaActual(1);
     cargarNotificaciones(1, false);
-  }, [tab]);
+  }, [tab, filtroTipo]);
 
   // SSE para tiempo real
   useEffect(() => {
@@ -183,6 +271,10 @@ const Notificaciones: React.FC = () => {
           return updated;
         });
 
+        // Reproducir sonido y mostrar notificación del navegador
+        reproducirSonido();
+        mostrarToast(`Nueva notificación: ${nuevaNotificacion.titulo}`, 'success');
+
         if (Notification.permission === "granted") {
           new Notification(nuevaNotificacion.titulo, {
             body: nuevaNotificacion.detalle,
@@ -212,19 +304,78 @@ const Notificaciones: React.FC = () => {
       console.log("[SSE] Cerrando conexión");
       eventSource.close();
     };
-  }, []);
+  }, [sonidoActivo]);
+
+  // Notificaciones filtradas por búsqueda
+  const notisFiltradas = useMemo(() => {
+    if (!q.trim()) return notis;
+    
+    const query = q.toLowerCase().trim();
+    return notis.filter(n => 
+      n.titulo.toLowerCase().includes(query) ||
+      n.detalle.toLowerCase().includes(query) ||
+      n.estudiante?.toLowerCase().includes(query) ||
+      n.area?.toLowerCase().includes(query) ||
+      n.curso?.toLowerCase().includes(query)
+    );
+  }, [notis, q]);
+
+  // Agrupar por fecha
+  const notisAgrupadas = useMemo(() => {
+    const grupos: Record<string, Noti[]> = {
+      'Hoy': [],
+      'Ayer': [],
+      'Esta semana': [],
+      'Anteriores': []
+    };
+
+    const ahora = new Date();
+    const hoy = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate());
+    const ayer = new Date(hoy);
+    ayer.setDate(ayer.getDate() - 1);
+    const inicioSemana = new Date(hoy);
+    inicioSemana.setDate(inicioSemana.getDate() - 7);
+
+    notisFiltradas.forEach(n => {
+      const fecha = new Date(n.fechaISO);
+      const fechaSinHora = new Date(fecha.getFullYear(), fecha.getMonth(), fecha.getDate());
+
+      if (fechaSinHora.getTime() === hoy.getTime()) {
+        grupos['Hoy'].push(n);
+      } else if (fechaSinHora.getTime() === ayer.getTime()) {
+        grupos['Ayer'].push(n);
+      } else if (fecha >= inicioSemana) {
+        grupos['Esta semana'].push(n);
+      } else {
+        grupos['Anteriores'].push(n);
+      }
+    });
+
+    return grupos;
+  }, [notisFiltradas]);
 
   const contadores = useMemo(() => {
     return {
       total: paginacion?.total || notis.length,
       unread: notis.filter(n => !n.leida).length,
+      filtradas: notisFiltradas.length,
     };
-  }, [notis, paginacion]);
+  }, [notis, paginacion, notisFiltradas]);
 
   const marcarLeida = async (id: Noti["id"]) => {
     try {
       const token = localStorage.getItem("token");
       if (!token) return;
+
+      // Optimistic update
+      setNotis((arr) => {
+        const updated = arr.map((n) => (n.id === id ? { ...n, leida: true } : n));
+        const noLeidas = updated.filter(n => !n.leida).length;
+        window.dispatchEvent(new CustomEvent('notificaciones-actualizadas', { 
+          detail: { noLeidas } 
+        }));
+        return updated;
+      });
 
       await fetch(`${API_BASE}/admin/notificaciones/marcar`, {
         method: "POST",
@@ -235,19 +386,9 @@ const Notificaciones: React.FC = () => {
         },
         body: JSON.stringify({ ids: [id] }),
       });
-
-      setNotis((arr) => {
-        const updated = arr.map((n) => (n.id === id ? { ...n, leida: true } : n));
-        
-        const noLeidas = updated.filter(n => !n.leida).length;
-        window.dispatchEvent(new CustomEvent('notificaciones-actualizadas', { 
-          detail: { noLeidas } 
-        }));
-        
-        return updated;
-      });
     } catch (error) {
       console.error("Error marcando como leída:", error);
+      mostrarToast("Error al marcar como leída", "error");
     }
   };
 
@@ -259,6 +400,15 @@ const Notificaciones: React.FC = () => {
       const idsNoLeidas = notis.filter(n => !n.leida).map(n => n.id);
       if (idsNoLeidas.length === 0) return;
 
+      // Optimistic update
+      setNotis((arr) => {
+        const updated = arr.map((n) => ({ ...n, leida: true }));
+        window.dispatchEvent(new CustomEvent('notificaciones-actualizadas', { 
+          detail: { noLeidas: 0 } 
+        }));
+        return updated;
+      });
+
       await fetch(`${API_BASE}/admin/notificaciones/marcar`, {
         method: "POST",
         headers: {
@@ -269,17 +419,34 @@ const Notificaciones: React.FC = () => {
         body: JSON.stringify({ ids: idsNoLeidas }),
       });
 
-      setNotis((arr) => {
-        const updated = arr.map((n) => ({ ...n, leida: true }));
-        
-        window.dispatchEvent(new CustomEvent('notificaciones-actualizadas', { 
-          detail: { noLeidas: 0 } 
-        }));
-        
-        return updated;
-      });
+      mostrarToast("Todas las notificaciones marcadas como leídas", "success");
     } catch (error) {
       console.error("Error marcando todas como leídas:", error);
+      mostrarToast("Error al marcar notificaciones", "error");
+    }
+  };
+
+  const eliminarNotificacion = async (id: Noti["id"]) => {
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) return;
+
+      // Optimistic update
+      setNotis((arr) => arr.filter(n => n.id !== id));
+
+      // TODO: Implementar endpoint DELETE en el backend
+      // await fetch(`${API_BASE}/admin/notificaciones/${id}`, {
+      //   method: "DELETE",
+      //   headers: {
+      //     Authorization: `Bearer ${token}`,
+      //     "ngrok-skip-browser-warning": "true",
+      //   },
+      // });
+
+      mostrarToast("Notificación eliminada", "success");
+    } catch (error) {
+      console.error("Error eliminando notificación:", error);
+      mostrarToast("Error al eliminar", "error");
     }
   };
 
@@ -296,17 +463,16 @@ const Notificaciones: React.FC = () => {
     const diffSegundos = Math.floor(diffMs / 1000);
     const diffMinutos = Math.floor(diffMs / (1000 * 60));
     const diffHoras = Math.floor(diffMs / (1000 * 60 * 60));
-    const diffDias = Math.floor(diffMs / (1000 * 60 * 60 * 24));
     
-    if (diffSegundos < 60) return 'Hace menos de 1 minuto';
-    if (diffMinutos < 60) return `Hace ${diffMinutos} minuto${diffMinutos !== 1 ? 's' : ''}`;
-    if (diffHoras < 24) return `Hace ${diffHoras} hora${diffHoras !== 1 ? 's' : ''}`;
-    if (diffDias < 7) return `Hace ${diffDias} día${diffDias !== 1 ? 's' : ''}`;
+    if (diffSegundos < 60) return 'Ahora mismo';
+    if (diffMinutos < 60) return `Hace ${diffMinutos} min`;
+    if (diffHoras < 24) return `Hace ${diffHoras}h`;
     
     return fecha.toLocaleDateString('es-ES', { 
       day: 'numeric', 
       month: 'short',
-      year: fecha.getFullYear() !== ahora.getFullYear() ? 'numeric' : undefined 
+      hour: '2-digit',
+      minute: '2-digit'
     });
   };
 
@@ -315,135 +481,353 @@ const Notificaciones: React.FC = () => {
     const fecha = new Date(fechaISO);
     const diffMs = ahora.getTime() - fecha.getTime();
     const diffMinutos = diffMs / (1000 * 60);
-    return diffMinutos < 60;
+    return diffMinutos < 5; // Consideramos "nueva" si tiene menos de 5 minutos
   };
 
   return (
-    <div className="p-0">
+    <div className="p-0 relative">
+      {/* Toast */}
+      {toast && (
+        <div className={`fixed top-4 right-4 z-50 px-6 py-3 rounded-lg shadow-lg border-2 flex items-center gap-3 animate-[slideInRight_0.3s_ease-out] ${
+          toast.tipo === 'success' 
+            ? 'bg-green-50 border-green-200 text-green-800' 
+            : 'bg-red-50 border-red-200 text-red-800'
+        }`}>
+          {toast.tipo === 'success' ? <FaCheckCircle /> : <FaExclamationTriangle />}
+          <span className="font-medium">{toast.mensaje}</span>
+        </div>
+      )}
+
       {/* Header */}
       <div className="mb-6">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Notificaciones</h1>
+            <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white">
+                <FaBell className="text-lg" />
+              </div>
+              Notificaciones
+            </h1>
             <p className="text-sm text-gray-600 mt-1">
-              {paginacion ? `${paginacion.total} notificaciones totales` : 'Cargando...'}
+              {paginacion ? (
+                <>
+                  <span className="font-semibold">{contadores.unread}</span> sin leer de{' '}
+                  <span className="font-semibold">{paginacion.total}</span> totales
+                </>
+              ) : 'Cargando...'}
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+          <div className="flex items-center gap-3">
+            {/* Indicador SSE */}
+            <div className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium transition-all shadow-sm ${
               sseConectado 
-                ? 'bg-green-50 text-green-700 border border-green-200' 
-                : 'bg-yellow-50 text-yellow-700 border border-yellow-200'
+                ? 'bg-green-50 text-green-700 border-2 border-green-200' 
+                : 'bg-yellow-50 text-yellow-700 border-2 border-yellow-200'
             }`}>
               <span className={`w-2 h-2 rounded-full ${
                 sseConectado 
                   ? 'bg-green-500 animate-pulse' 
                   : 'bg-yellow-500 animate-pulse'
               }`}></span>
-              {sseConectado ? 'En Vivo' : 'Reconectando...'}
+              {sseConectado ? 'Conectado' : 'Reconectando...'}
+            </div>
+
+            {/* Toggle sonido */}
+            <button
+              onClick={() => setSonidoActivo(!sonidoActivo)}
+              className={`p-2 rounded-xl transition-all ${
+                sonidoActivo 
+                  ? 'bg-blue-50 text-blue-600 hover:bg-blue-100' 
+                  : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
+              }`}
+              title={sonidoActivo ? "Silenciar notificaciones" : "Activar sonido"}
+            >
+              {sonidoActivo ? <FaVolumeUp /> : <FaVolumeMute />}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Barra de acciones */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-6">
+        <div className="flex items-center justify-between flex-wrap gap-4">
+          {/* Tabs */}
+          <div className="flex gap-2">
+            <TabBtn 
+              active={tab === "todas"} 
+              onClick={() => setTab("todas")} 
+              label={`Todas`}
+              count={contadores.total}
+            />
+            <TabBtn 
+              active={tab === "no_leidas"} 
+              onClick={() => setTab("no_leidas")} 
+              label={`No Leídas`}
+              count={contadores.unread}
+              highlight={contadores.unread > 0}
+            />
+          </div>
+
+          {/* Acciones */}
+          <div className="flex gap-2">
+            <button 
+              onClick={() => setMostrarFiltros(!mostrarFiltros)}
+              className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors flex items-center gap-2"
+            >
+              <FaFilter />
+              Filtros
+              {filtroTipo !== 'todos' && (
+                <span className="bg-blue-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs">
+                  1
+                </span>
+              )}
+            </button>
+            <button 
+              onClick={marcarTodasLeidas}
+              disabled={contadores.unread === 0}
+              className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            >
+              <FaCheckCircle />
+              Marcar todas como leídas
+            </button>
+          </div>
+        </div>
+
+        {/* Panel de filtros */}
+        {mostrarFiltros && (
+          <div className="mt-4 pt-4 border-t border-gray-200 animate-[slideDown_0.2s_ease-out]">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-sm font-medium text-gray-700">Tipo:</span>
+              <FiltroBtn 
+                active={filtroTipo === "todos"} 
+                onClick={() => setFiltroTipo("todos")} 
+                label="Todos"
+              />
+              {(Object.keys(configTipo("inactividad")) as TipoNoti[]).slice(0, 7).map(tipo => {
+                const config = configTipo(tipo);
+                return (
+                  <FiltroBtn 
+                    key={tipo}
+                    active={filtroTipo === tipo} 
+                    onClick={() => setFiltroTipo(tipo)} 
+                    label={config.label}
+                    color={config.color}
+                  />
+                );
+              })}
             </div>
           </div>
-        </div>
-      </div>
+        )}
 
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex gap-2">
-          <TabBtn active={tab === "todas"} onClick={() => setTab("todas")} label={`Todas (${contadores.total})`} />
-          <TabBtn active={tab === "no_leidas"} onClick={() => setTab("no_leidas")} label={`No Leídas (${contadores.unread})`} />
-        </div>
-        <div className="flex gap-2">
-          <button 
-            onClick={marcarTodasLeidas}
-            disabled={contadores.unread === 0}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Marcar todas como leídas
-          </button>
-        </div>
-      </div>
-
-      {/* Lista */}
-      <div className="space-y-2">
-        {notis.length === 0 && !cargando ? (
-          <div className="text-center py-12 text-gray-500 text-sm">
-            Sin notificaciones
+        {/* Búsqueda */}
+        <div className="mt-4">
+          <div className="relative">
+            <FaSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Buscar por estudiante, área, título..."
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              className="w-full pl-10 pr-10 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+            {q && (
+              <button
+                onClick={() => setQ("")}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
+                <FaTimes />
+              </button>
+            )}
           </div>
-        ) : (
-          notis.map((n) => {
-            const iconColor = n.tipo === 'puntaje_bajo' || n.tipo === 'inactividad' ? '#f59e0b' : '#8b5cf6';
-            const nueva = esNueva(n.fechaISO);
+          {q && (
+            <p className="text-xs text-gray-600 mt-2">
+              {contadores.filtradas} resultado{contadores.filtradas !== 1 ? 's' : ''} encontrado{contadores.filtradas !== 1 ? 's' : ''}
+            </p>
+          )}
+        </div>
+      </div>
+
+      {/* Lista de notificaciones agrupadas */}
+      {cargando && notis.length === 0 ? (
+        <div className="space-y-3">
+          {[1, 2, 3, 4, 5].map(i => (
+            <SkeletonCard key={i} />
+          ))}
+        </div>
+      ) : notisFiltradas.length === 0 ? (
+        <div className="text-center py-16">
+          <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-gray-100 flex items-center justify-center">
+            <FaBell className="text-gray-400 text-3xl" />
+          </div>
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">
+            {q ? 'No se encontraron resultados' : 'No hay notificaciones'}
+          </h3>
+          <p className="text-sm text-gray-600">
+            {q 
+              ? 'Intenta con otros términos de búsqueda' 
+              : 'Las notificaciones aparecerán aquí cuando haya actividad'
+            }
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-6">
+          {Object.entries(notisAgrupadas).map(([grupo, notificaciones]) => {
+            if (notificaciones.length === 0) return null;
             
             return (
-              <div 
-                key={n.id} 
-                className={`bg-white rounded-lg p-4 shadow-sm transition-all ${
-                  nueva 
-                    ? 'border-2 border-green-300 ring-2 ring-green-100' 
-                    : 'border border-gray-100'
-                } ${!n.leida ? 'bg-blue-50/30' : ''}`}
-              >
-                <div className="flex items-start justify-between">
-                  <div className="flex items-start gap-3 flex-1">
-                    <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: iconColor, opacity: 0.2 }}>
-                      {iconoDe(n.tipo)}
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <h4 className="font-semibold text-gray-900 text-sm">{n.titulo}</h4>
-                        {nueva && (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700 border border-green-200">
-                            ✨ Nueva
-                          </span>
-                        )}
-                        {!n.leida && !nueva && (
-                          <span className="w-2 h-2 rounded-full bg-blue-500"></span>
-                        )}
+              <div key={grupo}>
+                <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wide mb-3 flex items-center gap-2">
+                  <span className="w-6 h-0.5 bg-gray-300 rounded"></span>
+                  {grupo}
+                  <span className="w-full h-0.5 bg-gray-300 rounded"></span>
+                </h2>
+                <div className="space-y-2">
+                  {notificaciones.map((n, index) => {
+                    const config = configTipo(n.tipo);
+                    const nueva = esNueva(n.fechaISO);
+                    
+                    return (
+                      <div 
+                        key={n.id} 
+                        className={`bg-white rounded-xl shadow-sm border-2 transition-all duration-300 hover:shadow-md group ${
+                          nueva 
+                            ? 'border-green-400 ring-2 ring-green-100 animate-[slideIn_0.3s_ease-out]' 
+                            : n.leida
+                            ? 'border-gray-200 hover:border-gray-300'
+                            : `${config.borderColor} ${config.bgColor} hover:shadow-lg`
+                        }`}
+                        style={{
+                          animationDelay: `${index * 50}ms`
+                        }}
+                      >
+                        <div className="p-4">
+                          <div className="flex items-start gap-4">
+                            {/* Icono */}
+                            <div className={`w-12 h-12 rounded-xl ${config.iconBg} ${config.textColor} flex items-center justify-center flex-shrink-0 transition-transform group-hover:scale-110`}>
+                              {config.icon}
+                            </div>
+
+                            {/* Contenido */}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-start justify-between gap-2 mb-2">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <h4 className="font-semibold text-gray-900 text-sm">
+                                    {n.titulo}
+                                  </h4>
+                                  {nueva && (
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-gradient-to-r from-green-400 to-emerald-500 text-white shadow-sm animate-pulse">
+                                      ✨ NUEVA
+                                    </span>
+                                  )}
+                                  {!n.leida && !nueva && (
+                                    <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
+                                  )}
+                                </div>
+                                <span className="text-xs text-gray-500 whitespace-nowrap">
+                                  {fmtTiempo(n.fechaISO)}
+                                </span>
+                              </div>
+
+                              {/* Información adicional */}
+                              {(n.estudiante || n.area || n.curso) && (
+                                <div className="flex items-center gap-2 mb-2 flex-wrap">
+                                  {n.estudiante && (
+                                    <span className="inline-flex items-center gap-1 text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded-md">
+                                      👤 {n.estudiante}
+                                    </span>
+                                  )}
+                                  {n.area && (
+                                    <span className="inline-flex items-center gap-1 text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-md">
+                                      📚 {n.area}
+                                    </span>
+                                  )}
+                                  {n.curso && (
+                                    <span className="inline-flex items-center gap-1 text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-md">
+                                      🎓 {n.curso}
+                                    </span>
+                                  )}
+                                  {n.puntaje !== undefined && (
+                                    <span className={`inline-flex items-center gap-1 text-xs px-2 py-1 rounded-md font-semibold ${
+                                      n.puntaje < 50 
+                                        ? 'bg-red-100 text-red-700' 
+                                        : n.puntaje < 70 
+                                        ? 'bg-yellow-100 text-yellow-700'
+                                        : 'bg-green-100 text-green-700'
+                                    }`}>
+                                      {n.puntaje}%
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+
+                              <p className="text-sm text-gray-700 leading-relaxed">
+                                {n.detalle}
+                              </p>
+                            </div>
+
+                            {/* Acciones */}
+                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              {!n.leida && (
+                                <button 
+                                  onClick={() => marcarLeida(n.id)}
+                                  className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"
+                                  title="Marcar como leída"
+                                >
+                                  <FaCheckCircle className="text-lg" />
+                                </button>
+                              )}
+                              <button 
+                                onClick={() => eliminarNotificacion(n.id)}
+                                className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                                title="Eliminar"
+                              >
+                                <FaTrash />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
                       </div>
-                      <p className="text-sm text-gray-700 mt-1">{n.estudiante || n.area || '-'}{n.curso ? ` - ${n.curso}` : ''}</p>
-                      <p className="text-xs text-gray-600 mt-1">{n.detalle}</p>
-                      <p className="text-xs text-gray-500 mt-1">{fmtTiempo(n.fechaISO)}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <button 
-                      onClick={() => marcarLeida(n.id)}
-                      className="text-gray-400 hover:text-blue-600 transition-colors"
-                      title="Marcar como leída"
-                    >
-                      <span className="text-lg">✓</span>
-                    </button>
-                  </div>
+                    );
+                  })}
                 </div>
               </div>
             );
-          })
-        )}
-      </div>
+          })}
+        </div>
+      )}
 
       {/* Botón cargar más */}
-      {paginacion && paginacion.hasNextPage && (
-        <div className="mt-6 text-center">
+      {paginacion && paginacion.hasNextPage && !q && (
+        <div className="mt-8 text-center">
           <button
             onClick={cargarMas}
             disabled={cargando}
-            className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-6 py-3 rounded-lg font-medium transition-colors disabled:opacity-50 flex items-center gap-2 mx-auto"
+            className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-8 py-3 rounded-xl font-semibold shadow-lg transition-all disabled:opacity-50 flex items-center gap-3 mx-auto hover:scale-105"
           >
             {cargando ? (
               <>
-                <FaSpinner className="animate-spin" />
+                <FaSpinner className="animate-spin text-lg" />
                 Cargando...
               </>
             ) : (
-              `Cargar más (${paginacion.total - notis.length} restantes)`
+              <>
+                Cargar más notificaciones
+                <span className="bg-white/20 px-2 py-0.5 rounded-full text-sm">
+                  {paginacion.total - notis.length}
+                </span>
+              </>
             )}
           </button>
         </div>
       )}
 
       {/* Info de paginación */}
-      {paginacion && (
-        <div className="mt-4 text-center text-xs text-gray-500">
-          Mostrando {notis.length} de {paginacion.total} notificaciones
+      {paginacion && !q && (
+        <div className="mt-6 text-center">
+          <p className="text-sm text-gray-500">
+            Mostrando <span className="font-semibold text-gray-700">{notis.length}</span> de{' '}
+            <span className="font-semibold text-gray-700">{paginacion.total}</span> notificaciones
+          </p>
         </div>
       )}
     </div>
@@ -451,19 +835,65 @@ const Notificaciones: React.FC = () => {
 };
 
 /* ====== Subcomponentes ====== */
-const TabBtn: React.FC<{ active: boolean; label: string; onClick: () => void }> = ({
-  active,
-  label,
-  onClick,
-}) => (
+const TabBtn: React.FC<{ 
+  active: boolean; 
+  label: string; 
+  count?: number;
+  highlight?: boolean;
+  onClick: () => void 
+}> = ({ active, label, count, highlight, onClick }) => (
   <button
     onClick={onClick}
-    className={`px-3 py-1.5 rounded-full text-xs font-medium transition ${
-      active ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'
+    className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all flex items-center gap-2 ${
+      active 
+        ? 'bg-blue-600 text-white shadow-md hover:bg-blue-700' 
+        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+    }`}
+  >
+    {label}
+    {count !== undefined && (
+      <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+        active 
+          ? 'bg-white/20 text-white' 
+          : highlight 
+          ? 'bg-red-500 text-white animate-pulse'
+          : 'bg-gray-200 text-gray-600'
+      }`}>
+        {count}
+      </span>
+    )}
+  </button>
+);
+
+const FiltroBtn: React.FC<{ 
+  active: boolean; 
+  label: string; 
+  color?: string;
+  onClick: () => void 
+}> = ({ active, label, color = 'gray', onClick }) => (
+  <button
+    onClick={onClick}
+    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+      active 
+        ? `bg-${color}-100 text-${color}-700 border-2 border-${color}-300 shadow-sm` 
+        : 'bg-gray-50 text-gray-600 border border-gray-200 hover:bg-gray-100'
     }`}
   >
     {label}
   </button>
+);
+
+const SkeletonCard: React.FC = () => (
+  <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 animate-pulse">
+    <div className="flex items-start gap-4">
+      <div className="w-12 h-12 rounded-xl bg-gray-200"></div>
+      <div className="flex-1">
+        <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
+        <div className="h-3 bg-gray-200 rounded w-1/2 mb-2"></div>
+        <div className="h-3 bg-gray-200 rounded w-full"></div>
+      </div>
+    </div>
+  </div>
 );
 
 export default Notificaciones;
