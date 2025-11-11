@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" fill="none">
+  <defs>
+    <linearGradient id="iconGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#2e5bff;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#3fa2ff;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Icono de birrete sin fondo -->
+  <g>
+    <!-- Base del birrete -->
+    <path d="M16 4L28 9V12C28 17.52 23.52 22 18 22C12.48 22 8 17.52 8 12V9L16 4Z" 
+          fill="url(#iconGradient)"/>
+    
+    <!-- Parte superior -->
+    <ellipse cx="18" cy="9" rx="10" ry="2" fill="url(#iconGradient)" opacity="0.8"/>
+    
+    <!-- Banda -->
+    <path d="M8 12C8 13.1 8.9 14 10 14H26C27.1 14 28 13.1 28 12V10H8V12Z" 
+          fill="url(#iconGradient)" opacity="0.9"/>
+    
+    <!-- Borla -->
+    <circle cx="24" cy="8" r="1.5" fill="url(#iconGradient)"/>
+    <line x1="24" y1="9.5" x2="24" y2="13" stroke="url(#iconGradient)" stroke-width="1"/>
+    <circle cx="24" cy="13" r="0.8" fill="url(#iconGradient)" opacity="0.8"/>
+  </g>
+</svg>
