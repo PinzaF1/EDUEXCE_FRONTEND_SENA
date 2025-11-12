@@ -7,7 +7,14 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "cypress:open": "cypress open",
+    "cypress:run": "cypress run",
+    "test": "cypress run",
+    "test:smoke": "cypress run --spec 'cypress/e2e/01-smoke/**'",
+    "test:auth": "cypress run --spec 'cypress/e2e/02-auth/**'",
+    "test:students": "cypress run --spec 'cypress/e2e/03-students/**'",
+    "test:taller": "cypress run --spec 'cypress/e2e/04-taller/**'"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.74.0",
@@ -22,10 +29,12 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.33.0",
+    "@types/node": "^24.10.0",
     "@types/react": "^19.1.10",
     "@types/react-dom": "^19.1.7",
     "@vitejs/plugin-react": "^5.0.0",
     "autoprefixer": "^10.4.21",
+    "cypress": "^15.6.0",
     "eslint": "^9.33.0",
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.20",

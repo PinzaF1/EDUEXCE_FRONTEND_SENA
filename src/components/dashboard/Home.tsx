@@ -1,15 +1,15 @@
-// src/pages/dashboard/Inicio.tsx
+// src/components/dashboard/Home.tsx
 import React, { useEffect, useState } from "react";
 
 // componentes
-import StatsIslas from "../assets/Islas";
-import ProgresoPorArea from "../assets/ProgresoPorArea";
-import RendimientoPorArea from "../assets/RendimientoPorArea";
+import StatsIslas from "@/components/shared/Islas";
+import ProgresoPorArea from "@/components/shared/ProgresoPorArea";
+import RendimientoPorArea from "@/components/shared/RendimientoPorArea";
 
 // tipos
-import type { IslaItem } from "../assets/Islas";
-import type { PuntoMes } from "../assets/ProgresoPorArea";
-import type { RendItem } from "../assets/RendimientoPorArea";
+import type { IslaItem } from "@/components/shared/Islas";
+import type { PuntoMes } from "@/components/shared/ProgresoPorArea";
+import type { RendItem } from "@/components/shared/RendimientoPorArea";
 
 /* ================== API base y helpers ================== */
 

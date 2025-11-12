@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { FaGraduationCap } from 'react-icons/fa'
 import { FiMail, FiLock, FiKey } from 'react-icons/fi'
-import { apiUrl, baseHeaders } from '../utils/api'
+import { apiUrl, baseHeaders } from '@/utils/api'
 import Swal from 'sweetalert2'
 
 const BRAND_DARK = '#1E40AF'

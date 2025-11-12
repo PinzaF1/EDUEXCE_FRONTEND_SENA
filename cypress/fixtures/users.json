@@ -1,0 +1,22 @@
+{
+  "validUser": {
+    "email": "admin@test.com",
+    "password": "test123456",
+    "nombre_institucion": "Institución Test",
+    "rol": "admin",
+    "id_institucion": "1"
+  },
+  "invalidUser": {
+    "email": "wrong@test.com",
+    "password": "wrongpassword"
+  },
+  "newUser": {
+    "nombre_institucion": "Nueva Institución",
+    "nit": "900123456-7",
+    "email": "nueva@test.com",
+    "telefono": "3001234567",
+    "direccion": "Calle 123",
+    "password": "newpass123",
+    "confirm_password": "newpass123"
+  }
+}

@@ -1,48 +1,27 @@
 import React, { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { FaEnvelope, FaLock, FaEye, FaEyeSlash, FaGraduationCap } from 'react-icons/fa'
-import { apiUrl, baseHeaders } from '../utils/api'
 import { FiArrowRight } from 'react-icons/fi'
+import { useAuth } from '@/hooks/useAuth'
+import { ROUTES, BRAND_COLORS, MESSAGES } from '@/utils/constants'
 
-const BRAND_DARK = '#1E40AF'
-const BRAND_MAIN = '#3B82F6'
-
-const LoginAdm: React.FC = () => {
+const LoginForm: React.FC = () => {
   const [correo, setCorreo] = useState('')
   const [password, setPassword] = useState('')
   const [mensaje, setMensaje] = useState('')
   const [loading, setLoading] = useState(false)
   const [showPwd, setShowPwd] = useState(false)
-  const navigate = useNavigate()
+  const { login } = useAuth()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setMensaje('')
     setLoading(true)
+    
     try {
-      const res = await fetch(apiUrl('/admin/login'), {
-        method: 'POST',
-        headers: baseHeaders(),
-        body: JSON.stringify({ correo: correo.trim(), password }),
-      })
-
-      const text = await res.text()
-      let data: any
-      try { data = JSON.parse(text) } catch { data = { error: text } }
-
-      if (res.ok && data?.token) {
-        localStorage.setItem('token', data.token)
-        localStorage.setItem('nombre_institucion', data.nombre_institucion || '')
-        localStorage.setItem('rol', data.rol || '')
-        if (data.id_institucion != null) {
-          localStorage.setItem('id_institucion', String(data.id_institucion))
-        }
-        navigate('/dashboard', { replace: true })
-      } else {
-        setMensaje(data?.mensaje || data?.error || 'Credenciales incorrectas')
-      }
-    } catch {
-      setMensaje('Error al conectar con el servidor')
+      await login(correo, password)
+    } catch (error: any) {
+      setMensaje(error.message || MESSAGES.LOGIN_ERROR)
     } finally {
       setLoading(false)
     }
@@ -53,7 +32,7 @@ const LoginAdm: React.FC = () => {
       {/* Volver */}
       <div className="mx-auto w-full max-w-5xl px-5 pt-4">
         <Link
-          to="/publicidad"
+          to={ROUTES.LANDING}
           className="inline-flex items-center gap-2 text-sm text-slate-600 hover:text-slate-800 transition-colors"
         >
           <span aria-hidden>←</span> Volver al inicio
@@ -65,7 +44,7 @@ const LoginAdm: React.FC = () => {
         {/* Icono + título */}
         <div
           className="mt-8 flex h-14 w-14 items-center justify-center rounded-2xl shadow-lg"
-          style={{ background: `linear-gradient(135deg, ${BRAND_DARK}, ${BRAND_MAIN})` }}
+          style={{ background: `linear-gradient(135deg, ${BRAND_COLORS.DARK}, ${BRAND_COLORS.MAIN})` }}
           aria-hidden
         >
           <FaGraduationCap size={26} className="text-white" />
@@ -109,7 +88,7 @@ const LoginAdm: React.FC = () => {
             <div>
               <div className="mb-1 flex items-center justify-between">
                 <label className="block text-[12px] font-medium text-slate-700">Contraseña</label>
-                <Link to="/password" className="text-[12px] font-medium" style={{ color: BRAND_MAIN }}>
+                <Link to={ROUTES.PASSWORD_RESET} className="text-[12px] font-medium" style={{ color: BRAND_COLORS.MAIN }}>
                   ¿Olvidó su contraseña?
                 </Link>
               </div>
@@ -140,7 +119,7 @@ const LoginAdm: React.FC = () => {
               type="submit"
               disabled={loading}
               className="mt-1 inline-flex w-full items-center justify-center gap-2 rounded-lg px-4 py-2.5 font-semibold text-white shadow-md transition disabled:opacity-60"
-              style={{ background: `linear-gradient(135deg, ${BRAND_DARK}, ${BRAND_MAIN})` }}
+              style={{ background: `linear-gradient(135deg, ${BRAND_COLORS.DARK}, ${BRAND_COLORS.MAIN})` }}
             >
               <FiArrowRight className="-ml-1" />
               {loading ? 'Ingresando…' : 'Iniciar Sesión'}
@@ -154,7 +133,7 @@ const LoginAdm: React.FC = () => {
           {/* Registro */}
           <div className="mt-5 text-center text-[13px] text-slate-600">
             ¿No tiene una cuenta?{' '}
-            <Link to="/registro" className="font-semibold" style={{ color: BRAND_MAIN }}>
+            <Link to={ROUTES.REGISTER} className="font-semibold" style={{ color: BRAND_COLORS.MAIN }}>
               Registrar institución
             </Link>
           </div>
@@ -165,7 +144,7 @@ const LoginAdm: React.FC = () => {
           <div className="flex items-start gap-3">
             <div
               className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-lg text-white"
-              style={{ background: `linear-gradient(135deg, ${BRAND_DARK}, ${BRAND_MAIN})` }}
+              style={{ background: `linear-gradient(135deg, ${BRAND_COLORS.DARK}, ${BRAND_COLORS.MAIN})` }}
               aria-hidden
             >
               <FaGraduationCap size={16} className="text-white" />
@@ -183,4 +162,4 @@ const LoginAdm: React.FC = () => {
   )
 }
 
-export default LoginAdm
+export default LoginForm

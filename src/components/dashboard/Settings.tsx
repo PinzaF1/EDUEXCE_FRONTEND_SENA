@@ -1,8 +1,8 @@
-// src/assets/Configuracion.tsx
+// src/components/dashboard/Settings.tsx
 import React, { useEffect, useState } from "react";
 import { FaShieldAlt, FaKey } from "react-icons/fa";
 import { useLocation } from "react-router-dom";
-import { apiUrl, authHeaders } from "../utils/api";
+import { apiUrl, authHeaders } from "@/utils/api";
 
 type TabKey = "institucion" | "seguridad";
 
