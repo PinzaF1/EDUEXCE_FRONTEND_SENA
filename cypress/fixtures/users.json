@@ -1,4 +1,5 @@
 {
+  "_comment": "⚠️ IMPORTANTE: Estos usuarios deben existir en la BASE DE DATOS DE TESTING, NO en producción",
   "validUser": {
     "email": "admin@test.com",
     "password": "test123456",

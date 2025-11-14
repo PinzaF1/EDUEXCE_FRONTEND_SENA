@@ -1,4 +1,5 @@
 {
+  "_comment": "⚠️ IMPORTANTE: Estos estudiantes son para TESTING. Se crean/eliminan durante las pruebas en la BD de testing",
   "validStudent": {
     "identificacion": "1234567890",
     "nombre": "Juan",

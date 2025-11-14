@@ -22,8 +22,10 @@ export default defineConfig({
     
     // Variables de entorno
     env: {
-      apiUrl: 'https://zavira-v8.onrender.com',
-      // Credenciales de prueba (cambiar por las reales para testing)
+      // ⚠️ IMPORTANTE: Usar backend de TESTING, NO producción
+      // Esta URL debe configurarse en .env.testing
+      apiUrl: process.env.VITE_API_URL || 'http://localhost:3000',
+      // Credenciales de prueba (deben existir en la BD de testing)
       testEmail: 'test@example.com',
       testPassword: 'test123456'
     }
