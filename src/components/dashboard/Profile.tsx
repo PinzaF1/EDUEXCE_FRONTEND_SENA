@@ -4,7 +4,7 @@ import { FaUpload, FaTrash, FaEdit, FaSave, FaTimes, FaImage, FaEye, FaEyeSlash 
 import { useNavigate } from "react-router-dom";
 
 /* ===== BASE URL + helpers de fetch ===== */
-const RAW_BASE = (import.meta as any).env?.VITE_API_URL || "https://gillian-semiluminous-blubberingly.ngrok-free.dev/";
+const RAW_BASE = (import.meta as any).env?.VITE_API_URL || "https://unimparted-henrietta-uninspissated.ngrok-free.dev/";
 const BASE_URL = RAW_BASE.replace(/\/+$/, "");
 const api = (path = "") => `${BASE_URL}${path.startsWith("/") ? path : "/" + path}`;
 

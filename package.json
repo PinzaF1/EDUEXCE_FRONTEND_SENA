@@ -7,7 +7,15 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "cypress:open": "cypress open",
+    "cypress:run": "cypress run",
+    "test": "cross-env VITE_API_URL=http://localhost:3000 cypress run",
+    "test:open": "cross-env VITE_API_URL=http://localhost:3000 cypress open",
+    "test:smoke": "cross-env VITE_API_URL=http://localhost:3000 cypress run --spec 'cypress/e2e/01-smoke/**'",
+    "test:auth": "cross-env VITE_API_URL=http://localhost:3000 cypress run --spec 'cypress/e2e/02-auth/**'",
+    "test:students": "cross-env VITE_API_URL=http://localhost:3000 cypress run --spec 'cypress/e2e/03-students/**'",
+    "test:taller": "cross-env VITE_API_URL=http://localhost:3000 cypress run --spec 'cypress/e2e/04-taller/**'"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.74.0",
@@ -22,10 +30,12 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.33.0",
+    "@types/node": "^24.10.0",
     "@types/react": "^19.1.10",
     "@types/react-dom": "^19.1.7",
     "@vitejs/plugin-react": "^5.0.0",
     "autoprefixer": "^10.4.21",
+    "cypress": "^15.6.0",
     "eslint": "^9.33.0",
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.20",

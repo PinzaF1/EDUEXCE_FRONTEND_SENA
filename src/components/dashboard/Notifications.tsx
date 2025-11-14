@@ -17,7 +17,7 @@ import {
 
 const RAW_BASE =
   (import.meta as any).env?.VITE_API_URL ||
-  "https://gillian-semiluminous-blubberingly.ngrok-free.dev/";
+  "https://unimparted-henrietta-uninspissated.ngrok-free.dev/";
 const API_BASE = RAW_BASE.replace(/\/+$/, "");
 
 /* ===================== Tipos ===================== */

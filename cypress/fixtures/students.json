@@ -1,0 +1,34 @@
+{
+  "_comment": "⚠️ IMPORTANTE: Estos estudiantes son para TESTING. Se crean/eliminan durante las pruebas en la BD de testing",
+  "validStudent": {
+    "identificacion": "1234567890",
+    "nombre": "Juan",
+    "apellido": "Pérez",
+    "email": "juan.perez@test.com",
+    "telefono": "3001234567",
+    "fecha_nacimiento": "2000-01-15",
+    "direccion": "Calle 123",
+    "grado": "11",
+    "estado": "activo"
+  },
+  "studentToEdit": {
+    "identificacion": "9876543210",
+    "nombre": "María",
+    "apellido": "González",
+    "email": "maria.gonzalez@test.com",
+    "telefono": "3009876543",
+    "fecha_nacimiento": "2001-03-20",
+    "direccion": "Carrera 456",
+    "grado": "10",
+    "estado": "activo"
+  },
+  "invalidStudent": {
+    "identificacion": "",
+    "nombre": "",
+    "apellido": "",
+    "email": "invalidemail",
+    "telefono": "123",
+    "fecha_nacimiento": "invalid-date",
+    "grado": "99"
+  }
+}

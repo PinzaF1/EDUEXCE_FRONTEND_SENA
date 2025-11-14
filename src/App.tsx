@@ -1,24 +1,24 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 
-// Rutas públicas
-import LoginAdm from '../src/assets/LoginAdm'
-import RegistroAdm from '../src/assets/RegistroAdm'
-import RestContra from '../src/assets/RestContra'
-import RestablecerAdmin from '../src/assets/RestablecerAdmin'
+// Rutas públicas (Auth)
+import LoginForm from '@/components/auth/LoginForm'
+import RegisterForm from '@/components/auth/RegisterForm'
+import PasswordRequest from '@/components/auth/PasswordRequest'
+import PasswordReset from '@/components/auth/PasswordReset'
 
-// Landing / Información
-import Landing from '../src/assets/Landing'
+// Landing
+import Landing from '@/components/landing/Landing'
 
 // Dashboard principal
-import Dashboard from '../src/assets/Dashboard'
+import Dashboard from '@/components/dashboard/Dashboard'
 
-// Componentes internos del dashboard (usando <Outlet/> en Dashboard)
-import Inicio from '../src/assets/Inicio'
-import Estudiantes from '../src/assets/Estudiantes'
-import Seguimiento from '../src/assets/Seguimiento'
-import Notificaciones from '../src/assets/Notificaciones'
-import Perfil from './assets/perfil'
-import Configuracion from './assets/Configuracion'
+// Páginas del dashboard
+import Home from '@/components/dashboard/Home'
+import Students from '@/components/dashboard/Students'
+import Tracking from '@/components/dashboard/Tracking'
+import Notifications from '@/components/dashboard/Notifications'
+import Profile from '@/components/dashboard/Profile'
+import Settings from '@/components/dashboard/Settings'
 
 function App() {
   return (
@@ -28,10 +28,10 @@ function App() {
 
         <Route path="/publicidad" element={<Landing />} />
 
-        <Route path="/login" element={<LoginAdm />} />
-        <Route path="/registro" element={<RegistroAdm />} />
-        <Route path="/password" element={<RestContra />} />
-        <Route path="/restablecer" element={<RestablecerAdmin />} />
+        <Route path="/login" element={<LoginForm />} />
+        <Route path="/registro" element={<RegisterForm />} />
+        <Route path="/password" element={<PasswordRequest />} />
+        <Route path="/restablecer" element={<PasswordReset />} />
 
         <Route path="/informacion" element={<Landing />} />
 
@@ -41,12 +41,12 @@ function App() {
         />
 
         <Route path="/dashboard" element={<Dashboard />}>
-          <Route index element={<Inicio />} />
-          <Route path="estudiantes" element={<Estudiantes />} />
-          <Route path="seguimiento" element={<Seguimiento />} />
-          <Route path="notificaciones" element={<Notificaciones />} />
-          <Route path="perfil" element={<Perfil />} />
-          <Route path="configuracion" element={<Configuracion />} />
+          <Route index element={<Home />} />
+          <Route path="estudiantes" element={<Students />} />
+          <Route path="seguimiento" element={<Tracking />} />
+          <Route path="notificaciones" element={<Notifications />} />
+          <Route path="perfil" element={<Profile />} />
+          <Route path="configuracion" element={<Settings />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/publicidad" replace />} />

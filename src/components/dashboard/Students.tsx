@@ -9,7 +9,7 @@ import {
 /* API */
 const BASE_URL =
   (import.meta as any).env?.VITE_API_URL?.replace(/\/+$/, "") ||
-  "https://gillian-semiluminous-blubberingly.ngrok-free.dev";
+  "https://unimparted-henrietta-uninspissated.ngrok-free.dev";
 const api = (p = "") => {
   const path = p.startsWith("/") ? p : `/${p}`;
   return `${BASE_URL}${path}`;

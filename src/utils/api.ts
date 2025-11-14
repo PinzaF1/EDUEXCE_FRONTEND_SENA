@@ -5,7 +5,7 @@
 
 // Base URL del backend (con fallback a ngrok)
 const RAW_BASE = (import.meta as any).env?.VITE_API_URL || 
-  "https://gillian-semiluminous-blubberingly.ngrok-free.dev/";
+  "https://unimparted-henrietta-uninspissated.ngrok-free.dev/";
 
 export const API_BASE_URL = RAW_BASE.replace(/\/+$/, ""); // Quitar "/" al final
 
