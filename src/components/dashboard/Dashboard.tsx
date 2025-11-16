@@ -1,8 +1,9 @@
 // src/assets/Dashboard.tsx
 import React, { useEffect, useRef, useState } from "react";
-import { Outlet, NavLink, useNavigate } from "react-router-dom";
-import { IoHomeOutline, IoPeopleOutline, IoStatsChartOutline, IoNotificationsOutline } from "react-icons/io5";
-import { FaGraduationCap, FaBell } from "react-icons/fa";
+import { Outlet, useNavigate } from "react-router-dom";
+import { IoMenuOutline } from "react-icons/io5";
+import { FaBell } from "react-icons/fa";
+import Sidebar from "./Sidebar";
 
 /* ===== Base URL (sin / al final) ===== */
 const RAW_BASE =
@@ -35,21 +36,12 @@ const getActiveInstitutionId = (): string | null => {
 
 const avatarKey = (instId: string | null) => (instId ? `avatar_url:${instId}` : null);
 
-/* ===== Logo (birrete) ===== */
-const AppLogo: React.FC<{ className?: string }> = ({ className = "" }) => (
-  <div
-    className={`grid place-items-center rounded-2xl bg-gradient-to-b from-[#2e5bff] to-[#3fa2ff] shadow-sm ${className}`}
-    style={{ width: 44, height: 44 }}
-  >
-    <FaGraduationCap className="text-white text-xl" />
-  </div>
-);
-
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const [institucion, setInstitucion] = useState("");
   const [rol, setRol] = useState("");
   const [openProfile, setOpenProfile] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [notificacionesCount, setNotificacionesCount] = useState(0);
   const profileRef = useRef<HTMLDivElement>(null);
 
@@ -205,162 +197,78 @@ const Dashboard: React.FC = () => {
 
   return (
     <div className="min-h-screen flex bg-[#f5f5f5]">
-      {/* Sidebar */}
-      <aside className="w-60 bg-white border-r border-gray-200 fixed left-0 top-0 h-full">
-        {/* Logo Section */}
-        <div className="p-6 border-b border-gray-200">
-          <div className="flex items-center gap-3">
-            <AppLogo />
-            <div>
-              <div className="text-base font-bold text-gray-900">EduExce</div>
-              <div className="text-xs text-gray-900">Dashboard Institucional</div>
-            </div>
-          </div>
-        </div>
-
-        {/* Navigation */}
-        <nav className="px-4 mt-6 space-y-1">
-          <NavLink to="" end className="block">
-            {({ isActive }) => (
-              <div className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${
-                isActive
-                  ? "bg-[#e0f2fe] font-semibold"
-                  : "hover:bg-gray-50"
-              }`}>
-                <IoHomeOutline style={{ 
-                  color: isActive ? "#2563eb" : "#4b5563",
-                  fontSize: '20px'
-                }} />
-                <span style={{ 
-                  color: isActive ? "#2563eb" : "#4b5563",
-                  fontSize: '15px'
-                }}>
-                  Inicio
-                </span>
-              </div>
-            )}
-          </NavLink>
-
-          <NavLink to="estudiantes" className="block">
-            {({ isActive }) => (
-              <div className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${
-                isActive
-                  ? "bg-[#e0f2fe] font-semibold"
-                  : "hover:bg-gray-50"
-              }`}>
-                <IoPeopleOutline style={{ 
-                  color: isActive ? "#2563eb" : "#4b5563",
-                  fontSize: '20px'
-                }} />
-                <span style={{ 
-                  color: isActive ? "#2563eb" : "#4b5563",
-                  fontSize: '15px'
-                }}>
-                  Estudiantes
-                </span>
-              </div>
-            )}
-          </NavLink>
-
-          <NavLink to="seguimiento" className="block">
-            {({ isActive }) => (
-              <div className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${
-                isActive
-                  ? "bg-[#e0f2fe] font-semibold"
-                  : "hover:bg-gray-50"
-              }`}>
-                <IoStatsChartOutline style={{ 
-                  color: isActive ? "#2563eb" : "#4b5563",
-                  fontSize: '20px'
-                }} />
-                <span style={{ 
-                  color: isActive ? "#2563eb" : "#4b5563",
-                  fontSize: '15px'
-                }}>
-                  Seguimiento
-                </span>
-              </div>
-            )}
-          </NavLink>
-
-          <NavLink to="notificaciones" className="block">
-            {({ isActive }) => (
-              <div className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${
-                isActive
-                  ? "bg-[#e0f2fe] font-semibold"
-                  : "hover:bg-gray-50"
-              }`}>
-                <IoNotificationsOutline style={{ 
-                  color: isActive ? "#2563eb" : "#4b5563",
-                  fontSize: '20px'
-                }} />
-                <span style={{ 
-                  color: isActive ? "#2563eb" : "#4b5563",
-                  fontSize: '15px'
-                }}>
-                  Notificaciones
-                </span>
-              </div>
-            )}
-          </NavLink>
-        </nav>
-      </aside>
+      {/* Sidebar Component */}
+      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       {/* Main Content */}
-      <div className="flex-1 ml-60">
+      <div className="flex-1 lg:ml-60">
         {/* Top Header */}
-        <header className="bg-white border-b border-gray-200 sticky top-0 z-40">
-          <div className="py-4 pr-6 flex items-center justify-end gap-4">
-            {/* Notification Icon */}
-            <div className="relative" onClick={() => navigate("/dashboard/notificaciones")}>
-              <FaBell className="text-xl text-gray-600 cursor-pointer" />
-              {notificacionesCount > 0 && (
-                <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
-                  {notificacionesCount}
-                </span>
-              )}
-            </div>
+        <header className="bg-white border-b border-gray-200 sticky top-0 z-30">
+          <div className="py-4 px-4 lg:px-6 flex items-center justify-between gap-4">
+            {/* Botón hamburguesa (solo móvil) */}
+            <button
+              onClick={() => setSidebarOpen(true)}
+              className="lg:hidden p-2 rounded-lg hover:bg-gray-100 transition-colors"
+            >
+              <IoMenuOutline className="text-2xl text-gray-600" />
+            </button>
 
-            {/* Profile */}
-            <div className="relative" ref={profileRef}>
-              <button onClick={() => setOpenProfile(!openProfile)} className="flex items-center gap-3">
-                {avatarUrl ? (
-                  <img
-                    src={avatarUrl}
-                    alt="Avatar"
-                    className="w-8 h-8 rounded-full object-cover"
-                  />
-                ) : (
-                  <div className="w-8 h-8 rounded-full bg-gray-300" />
+            {/* Espaciador para centrar en desktop */}
+            <div className="flex-1 lg:hidden" />
+
+            {/* Right side */}
+            <div className="flex items-center gap-4">
+              {/* Notification Icon */}
+              <div className="relative cursor-pointer" onClick={() => navigate("/dashboard/notificaciones")}>
+                <FaBell className="text-lg lg:text-xl text-gray-600" />
+                {notificacionesCount > 0 && (
+                  <span className="absolute -top-1 -right-1 w-4 h-4 lg:w-5 lg:h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
+                    {notificacionesCount > 9 ? '9+' : notificacionesCount}
+                  </span>
                 )}
-                <div className="text-left">
-                  <div className="text-sm font-semibold text-gray-900">{rol || "Administrador"}</div>
-                  <div className="text-xs text-gray-600">{institucion || "Normal Superior"}</div>
-                </div>
-              </button>
+              </div>
 
-              {openProfile && (
-                <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
-                  <button
-                    onClick={irPerfil}
-                    className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50"
-                  >
-                    Perfil
-                  </button>
-                  <button
-                    onClick={cerrarSesion}
-                    className="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50"
-                  >
-                    Cerrar sesión
-                  </button>
-                </div>
-              )}
+              {/* Profile */}
+              <div className="relative" ref={profileRef}>
+                <button onClick={() => setOpenProfile(!openProfile)} className="flex items-center gap-2 lg:gap-3">
+                  {avatarUrl ? (
+                    <img
+                      src={avatarUrl}
+                      alt="Avatar"
+                      className="w-7 h-7 lg:w-8 lg:h-8 rounded-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-7 h-7 lg:w-8 lg:h-8 rounded-full bg-gray-300" />
+                  )}
+                  <div className="text-left hidden sm:block">
+                    <div className="text-xs lg:text-sm font-semibold text-gray-900">{rol || "Administrador"}</div>
+                    <div className="text-xs text-gray-600 truncate max-w-[150px]">{institucion || "Normal Superior"}</div>
+                  </div>
+                </button>
+
+                {openProfile && (
+                  <div className="absolute right-0 mt-2 w-48 lg:w-56 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
+                    <button
+                      onClick={irPerfil}
+                      className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 rounded-t-lg"
+                    >
+                      Perfil
+                    </button>
+                    <button
+                      onClick={cerrarSesion}
+                      className="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 rounded-b-lg"
+                    >
+                      Cerrar sesión
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </header>
 
         {/* Content Area */}
-        <main className="p-6">
+        <main className="p-4 lg:p-6">
           <Outlet />
         </main>
       </div>
