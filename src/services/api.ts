@@ -3,7 +3,12 @@
  * Todas las peticiones al backend pasan por aquí
  */
 
-const API_URL = import.meta.env.VITE_API_URL || 'https://zavira-v8.onrender.com';
+const API_URL = import.meta.env.VITE_API_URL;
+
+if (!API_URL) {
+  console.error('❌ VITE_API_URL no está configurada. Revisa tu archivo .env');
+  throw new Error('Missing VITE_API_URL environment variable');
+}
 
 // Headers base para todas las peticiones
 const getHeaders = (): HeadersInit => ({

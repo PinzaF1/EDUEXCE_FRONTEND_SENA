@@ -25,9 +25,9 @@ export default defineConfig({
       // ⚠️ IMPORTANTE: Usar backend de TESTING, NO producción
       // Esta URL debe configurarse en .env.testing
       apiUrl: process.env.VITE_API_URL || 'http://localhost:3000',
-      // Credenciales de prueba (deben existir en la BD de testing)
-      testEmail: 'test@example.com',
-      testPassword: 'test123456'
+      // ⚠️ CAMBIAR: Credenciales deben estar en variables de entorno
+      testEmail: process.env.TEST_EMAIL || 'test@example.com',
+      testPassword: process.env.TEST_PASSWORD || 'test123456'
     }
   },
   

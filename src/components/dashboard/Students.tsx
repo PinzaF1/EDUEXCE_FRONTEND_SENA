@@ -8,8 +8,12 @@ import {
 
 /* API */
 const BASE_URL =
-  (import.meta as any).env?.VITE_API_URL?.replace(/\/+$/, "") ||
-  "https://unimparted-henrietta-uninspissated.ngrok-free.dev";
+  (import.meta as any).env?.VITE_API_URL?.replace(/\/+$/, "");
+
+if (!BASE_URL) {
+  console.error('❌ VITE_API_URL no configurada');
+  throw new Error('Missing VITE_API_URL environment variable');
+}
 const api = (p = "") => {
   const path = p.startsWith("/") ? p : `/${p}`;
   return `${BASE_URL}${path}`;

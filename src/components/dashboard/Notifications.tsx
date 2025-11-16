@@ -16,8 +16,13 @@ import {
 } from "react-icons/fa";
 
 const RAW_BASE =
-  (import.meta as any).env?.VITE_API_URL ||
-  "https://unimparted-henrietta-uninspissated.ngrok-free.dev/";
+  (import.meta as any).env?.VITE_API_URL;
+
+if (!RAW_BASE) {
+  console.error('❌ VITE_API_URL no configurada');
+  throw new Error('Missing VITE_API_URL environment variable');
+}
+
 const API_BASE = RAW_BASE.replace(/\/+$/, "");
 
 /* ===================== Tipos ===================== */
@@ -58,56 +63,56 @@ const configTipo = (t: TipoNoti) => {
     },
     inactividad_30d: {
       icon: <FaRegClock />,
-      color: "indigo",
-      bgColor: "bg-indigo-50",
-      borderColor: "border-indigo-200",
-      textColor: "text-indigo-700",
-      iconBg: "bg-indigo-100",
+      color: "blue",
+      bgColor: "bg-blue-50",
+      borderColor: "border-blue-200",
+      textColor: "text-blue-600",
+      iconBg: "bg-blue-100",
       label: "Inactividad 30d"
     },
     puntaje_bajo: {
       icon: <FaExclamationTriangle />,
-      color: "rose",
-      bgColor: "bg-rose-50",
-      borderColor: "border-rose-200",
-      textColor: "text-rose-700",
-      iconBg: "bg-rose-100",
+      color: "blue",
+      bgColor: "bg-blue-50",
+      borderColor: "border-blue-200",
+      textColor: "text-blue-700",
+      iconBg: "bg-blue-100",
       label: "Puntaje Bajo"
     },
     puntaje_bajo_inmediato: {
       icon: <FaExclamationTriangle />,
-      color: "red",
-      bgColor: "bg-red-50",
-      borderColor: "border-red-200",
-      textColor: "text-red-700",
-      iconBg: "bg-red-100",
+      color: "blue",
+      bgColor: "bg-blue-100",
+      borderColor: "border-blue-300",
+      textColor: "text-blue-800",
+      iconBg: "bg-blue-200",
       label: "Puntaje Crítico"
     },
     area_critica: {
       icon: <FaExclamationTriangle />,
-      color: "orange",
-      bgColor: "bg-orange-50",
-      borderColor: "border-orange-200",
-      textColor: "text-orange-700",
-      iconBg: "bg-orange-100",
+      color: "blue",
+      bgColor: "bg-blue-50",
+      borderColor: "border-blue-200",
+      textColor: "text-blue-700",
+      iconBg: "bg-blue-100",
       label: "Área Crítica"
     },
     estudiante_alerta: {
       icon: <FaBell />,
-      color: "amber",
-      bgColor: "bg-amber-50",
-      borderColor: "border-amber-200",
-      textColor: "text-amber-700",
-      iconBg: "bg-amber-100",
+      color: "blue",
+      bgColor: "bg-blue-50",
+      borderColor: "border-blue-200",
+      textColor: "text-blue-700",
+      iconBg: "bg-blue-100",
       label: "Alerta Estudiante"
     },
     progreso_lento: {
       icon: <FaChartLine />,
-      color: "purple",
-      bgColor: "bg-purple-50",
-      borderColor: "border-purple-200",
-      textColor: "text-purple-700",
-      iconBg: "bg-purple-100",
+      color: "blue",
+      bgColor: "bg-blue-50",
+      borderColor: "border-blue-200",
+      textColor: "text-blue-700",
+      iconBg: "bg-blue-100",
       label: "Progreso Lento"
     },
   };
@@ -129,14 +134,44 @@ const Notificaciones: React.FC = () => {
   const [toast, setToast] = useState<{mensaje: string, tipo: 'success' | 'error'} | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  // Sonido de notificación (opcional)
+  // Sonido de notificación (Web Audio API - más confiable)
   useEffect(() => {
-    audioRef.current = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBjGJ0fPTgjMGHm7A7+OZUQ0PV6vo7aNaFAtBm9/zvWwi');
+    // Crear un contexto de audio
+    const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioContext) return;
+
+    const audioContext = new AudioContext();
+
+    // Función para reproducir un beep
+    const crearSonido = () => {
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+
+      oscillator.frequency.value = 800; // Frecuencia agradable
+      oscillator.type = 'sine';
+
+      gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+
+      oscillator.start(audioContext.currentTime);
+      oscillator.stop(audioContext.currentTime + 0.5);
+    };
+
+    (audioRef as any).current = { play: crearSonido };
   }, []);
 
   const reproducirSonido = () => {
-    if (sonidoActivo && audioRef.current) {
-      audioRef.current.play().catch(() => {/* ignore */});
+    if (!sonidoActivo) return;
+    
+    try {
+      if (audioRef.current && typeof (audioRef.current as any).play === 'function') {
+        (audioRef.current as any).play();
+      }
+    } catch (error) {
+      console.warn('[Audio] No se pudo reproducir el sonido:', error);
     }
   };
 
@@ -215,85 +250,88 @@ const Notificaciones: React.FC = () => {
     cargarNotificaciones(1, false);
   }, [tab, filtroTipo]);
 
-  // SSE para tiempo real
+  // Polling para tiempo real (fallback mientras el backend implementa SSE)
   useEffect(() => {
     const token = localStorage.getItem("token");
-    if (!token) return;
+    if (!token) {
+      console.warn('[Polling] No hay token, no se puede conectar');
+      setSseConectado(false);
+      return;
+    }
 
-    console.log("[SSE] Conectando a notificaciones en tiempo real...");
+    console.log("[Polling] Iniciando actualización automática cada 30 segundos...");
+    setSseConectado(true); // Marcar como "conectado" con polling
     
-    const eventSource = new EventSource(`${API_BASE}/admin/notificaciones/stream`, {
-      withCredentials: true,
-    });
-
-    eventSource.onopen = () => {
-      console.log("[SSE] Conexión establecida con el servidor");
-      setSseConectado(true);
-    };
-
-    eventSource.onmessage = (event) => {
+    // Función para verificar nuevas notificaciones
+    const verificarNuevas = async () => {
       try {
-        const data = JSON.parse(event.data);
-        
-        if (data.tipo === 'conexion') {
-          console.log("[SSE] Conexión confirmada:", data.mensaje);
-          setSseConectado(true);
-          return;
-        }
-
-        console.log("[SSE] Nueva notificación recibida:", data);
-
-        const p = data.payload || {};
-        const nuevaNotificacion: Noti = {
-          id: data.id_notificacion || data.id,
-          tipo: (data.tipo || "inactividad") as TipoNoti,
-          titulo: data.titulo || p.titulo || "",
-          detalle: data.detalle || p.detalle || "",
-          fechaISO: data.created_at || data.createdAt || new Date().toISOString(),
-          leida: false,
-          area: p.area,
-          puntaje: typeof p.porcentaje === 'number' ? Math.round(p.porcentaje) : (typeof p.puntaje === 'number' ? Math.round(p.puntaje) : undefined),
-          estudiante: p.estudiante || p.nombre,
-          curso: p.curso,
-        };
-
-        setNotis((prev) => {
-          const existe = prev.some(n => n.id === nuevaNotificacion.id);
-          if (existe) return prev;
-          
-          const updated = [nuevaNotificacion, ...prev];
-          
-          const noLeidas = updated.filter(n => !n.leida).length;
-          window.dispatchEvent(new CustomEvent('notificaciones-actualizadas', { 
-            detail: { noLeidas } 
-          }));
-          
-          return updated;
+        const res = await fetch(`${API_BASE}/admin/notificaciones?page=1&limit=5&leida=false`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "ngrok-skip-browser-warning": "true",
+          },
+          cache: "no-store",
         });
 
-        // Reproducir sonido y mostrar notificación del navegador
-        reproducirSonido();
-        mostrarToast(`Nueva notificación: ${nuevaNotificacion.titulo}`, 'success');
-
-        if (Notification.permission === "granted") {
-          new Notification(nuevaNotificacion.titulo, {
-            body: nuevaNotificacion.detalle,
-            icon: "/vite.svg",
-            badge: "/vite.svg",
-            tag: String(nuevaNotificacion.id),
+        if (res.ok) {
+          const data = await res.json();
+          const notifs = data.notificaciones || [];
+          
+          // Verificar si hay notificaciones nuevas
+          const nuevas = notifs.filter((n: any) => {
+            const existe = notis.some(existing => existing.id === (n.id_notificacion || n.id));
+            return !existe;
           });
+
+          if (nuevas.length > 0) {
+            console.log(`[Polling] ${nuevas.length} notificación(es) nueva(s) detectada(s)`);
+            
+            // Agregar las nuevas al inicio
+            nuevas.forEach((n: any) => {
+              const p = n.payload || {};
+              const nuevaNotificacion: Noti = {
+                id: n.id_notificacion || n.id,
+                tipo: (n.tipo || "inactividad") as TipoNoti,
+                titulo: n.titulo || p.titulo || "",
+                detalle: n.detalle || p.detalle || "",
+                fechaISO: n.created_at || n.createdAt || new Date().toISOString(),
+                leida: false,
+                area: p.area,
+                puntaje: typeof p.porcentaje === 'number' ? Math.round(p.porcentaje) : undefined,
+                estudiante: p.estudiante || p.nombre,
+                curso: p.curso,
+              };
+
+              setNotis((prev) => [nuevaNotificacion, ...prev]);
+              reproducirSonido();
+              mostrarToast(`Nueva notificación: ${nuevaNotificacion.titulo}`, 'success');
+
+              if (Notification.permission === "granted") {
+                new Notification(nuevaNotificacion.titulo, {
+                  body: nuevaNotificacion.detalle,
+                  icon: "/vite.svg",
+                });
+              }
+            });
+
+            // Actualizar contador global
+            window.dispatchEvent(new CustomEvent('notificaciones-actualizadas', { 
+              detail: { noLeidas: notis.filter(n => !n.leida).length + nuevas.length } 
+            }));
+          }
         }
       } catch (error) {
-        console.error("[SSE] Error procesando notificación:", error);
+        console.warn('[Polling] Error verificando notificaciones:', error);
       }
     };
 
-    eventSource.onerror = (error) => {
-      console.error("[SSE] Error en la conexión:", error);
-      console.log("[SSE] Intentando reconectar...");
-      setSseConectado(false);
-    };
+    // Polling cada 30 segundos
+    const intervalId = setInterval(verificarNuevas, 30000);
+    
+    // Verificar inmediatamente al montar
+    verificarNuevas();
 
+    // Solicitar permiso de notificaciones
     if (Notification.permission === "default") {
       Notification.requestPermission().then(permission => {
         console.log("[Notifications] Permiso:", permission);
@@ -301,10 +339,11 @@ const Notificaciones: React.FC = () => {
     }
 
     return () => {
-      console.log("[SSE] Cerrando conexión");
-      eventSource.close();
+      console.log("[Polling] Deteniendo actualización automática");
+      clearInterval(intervalId);
+      setSseConectado(false);
     };
-  }, [sonidoActivo]);
+  }, [sonidoActivo, notis]);
 
   // Notificaciones filtradas por búsqueda
   const notisFiltradas = useMemo(() => {
@@ -503,7 +542,7 @@ const Notificaciones: React.FC = () => {
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div>
             <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white">
+              <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-md">
                 <FaBell className="text-lg" />
               </div>
               Notificaciones
@@ -518,31 +557,52 @@ const Notificaciones: React.FC = () => {
             </p>
           </div>
           <div className="flex items-center gap-3">
-            {/* Indicador SSE */}
+            {/* Indicador de actualización */}
             <div className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium transition-all shadow-sm ${
               sseConectado 
-                ? 'bg-green-50 text-green-700 border-2 border-green-200' 
-                : 'bg-yellow-50 text-yellow-700 border-2 border-yellow-200'
+                ? 'bg-blue-50 text-blue-700 border-2 border-blue-200' 
+                : 'bg-gray-100 text-gray-600 border-2 border-gray-300'
             }`}>
               <span className={`w-2 h-2 rounded-full ${
                 sseConectado 
-                  ? 'bg-green-500 animate-pulse' 
-                  : 'bg-yellow-500 animate-pulse'
+                  ? 'bg-blue-500 shadow-lg shadow-blue-500/50' 
+                  : 'bg-gray-400 animate-pulse'
               }`}></span>
-              {sseConectado ? 'Conectado' : 'Reconectando...'}
+              <span className="hidden sm:inline flex items-center gap-1">
+                {sseConectado ? (
+                  <>
+                    <FaCheckCircle className="text-xs" />
+                    Actualizando (30s)
+                  </>
+                ) : (
+                  <>
+                    <FaSpinner className="text-xs animate-spin" />
+                    Conectando...
+                  </>
+                )}
+              </span>
+              <span className="sm:hidden">
+                {sseConectado ? <FaCheckCircle /> : <FaSpinner className="animate-spin" />}
+              </span>
             </div>
 
             {/* Toggle sonido */}
             <button
-              onClick={() => setSonidoActivo(!sonidoActivo)}
-              className={`p-2 rounded-xl transition-all ${
+              onClick={() => {
+                setSonidoActivo(!sonidoActivo);
+                // Reproducir sonido de prueba al activar
+                if (!sonidoActivo) {
+                  setTimeout(() => reproducirSonido(), 100);
+                }
+              }}
+              className={`p-2 rounded-xl transition-all shadow-sm ${
                 sonidoActivo 
-                  ? 'bg-blue-50 text-blue-600 hover:bg-blue-100' 
-                  : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
+                  ? 'bg-blue-50 text-blue-600 hover:bg-blue-100 border-2 border-blue-200' 
+                  : 'bg-gray-100 text-gray-400 hover:bg-gray-200 border-2 border-gray-300'
               }`}
-              title={sonidoActivo ? "Silenciar notificaciones" : "Activar sonido"}
+              title={sonidoActivo ? "Silenciar notificaciones (Click para probar)" : "Activar sonido"}
             >
-              {sonidoActivo ? <FaVolumeUp /> : <FaVolumeMute />}
+              {sonidoActivo ? <FaVolumeUp className="text-lg" /> : <FaVolumeMute className="text-lg" />}
             </button>
           </div>
         </div>
@@ -596,25 +656,73 @@ const Notificaciones: React.FC = () => {
         {/* Panel de filtros */}
         {mostrarFiltros && (
           <div className="mt-4 pt-4 border-t border-gray-200 animate-[slideDown_0.2s_ease-out]">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-sm font-medium text-gray-700">Tipo:</span>
-              <FiltroBtn 
-                active={filtroTipo === "todos"} 
-                onClick={() => setFiltroTipo("todos")} 
-                label="Todos"
-              />
-              {(Object.keys(configTipo("inactividad")) as TipoNoti[]).slice(0, 7).map(tipo => {
-                const config = configTipo(tipo);
-                return (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-sm font-semibold text-gray-700 mr-2 min-w-[60px]">Tipo:</span>
+                <div className="flex flex-wrap gap-2">
                   <FiltroBtn 
-                    key={tipo}
-                    active={filtroTipo === tipo} 
-                    onClick={() => setFiltroTipo(tipo)} 
-                    label={config.label}
-                    color={config.color}
+                    active={filtroTipo === "todos"} 
+                    onClick={() => setFiltroTipo("todos")} 
+                    label="Todos"
+                    color="gray"
                   />
-                );
-              })}
+                  <FiltroBtn 
+                    active={filtroTipo === "inactividad"} 
+                    onClick={() => setFiltroTipo("inactividad")} 
+                    label="Inactividad"
+                    color="blue"
+                  />
+                  <FiltroBtn 
+                    active={filtroTipo === "inactividad_30d"} 
+                    onClick={() => setFiltroTipo("inactividad_30d")} 
+                    label="Inactividad 30d"
+                    color="blue"
+                  />
+                  <FiltroBtn 
+                    active={filtroTipo === "puntaje_bajo"} 
+                    onClick={() => setFiltroTipo("puntaje_bajo")} 
+                    label="Puntaje Bajo"
+                    color="blue"
+                  />
+                  <FiltroBtn 
+                    active={filtroTipo === "puntaje_bajo_inmediato"} 
+                    onClick={() => setFiltroTipo("puntaje_bajo_inmediato")} 
+                    label="Puntaje Crítico"
+                    color="blue"
+                  />
+                  <FiltroBtn 
+                    active={filtroTipo === "area_critica"} 
+                    onClick={() => setFiltroTipo("area_critica")} 
+                    label="Área Crítica"
+                    color="blue"
+                  />
+                  <FiltroBtn 
+                    active={filtroTipo === "estudiante_alerta"} 
+                    onClick={() => setFiltroTipo("estudiante_alerta")} 
+                    label="Alerta"
+                    color="blue"
+                  />
+                  <FiltroBtn 
+                    active={filtroTipo === "progreso_lento"} 
+                    onClick={() => setFiltroTipo("progreso_lento")} 
+                    label="Progreso Lento"
+                    color="blue"
+                  />
+                </div>
+              </div>
+              {filtroTipo !== 'todos' && (
+                <div className="flex items-center gap-2 text-sm text-blue-600">
+                  <FaFilter className="text-xs" />
+                  <span>Mostrando solo: <strong>{configTipo(filtroTipo as TipoNoti).label}</strong></span>
+                  <button
+                    onClick={() => setFiltroTipo('todos')}
+                    className="ml-2 text-gray-500 hover:text-gray-700 transition-colors"
+                    title="Limpiar filtro"
+                  >
+                    <FaTimes />
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -691,10 +799,10 @@ const Notificaciones: React.FC = () => {
                         key={n.id} 
                         className={`bg-white rounded-xl shadow-sm border-2 transition-all duration-300 hover:shadow-md group ${
                           nueva 
-                            ? 'border-green-400 ring-2 ring-green-100 animate-[slideIn_0.3s_ease-out]' 
+                            ? 'border-blue-400 ring-2 ring-blue-100 animate-[slideIn_0.3s_ease-out]' 
                             : n.leida
                             ? 'border-gray-200 hover:border-gray-300'
-                            : `${config.borderColor} ${config.bgColor} hover:shadow-lg`
+                            : `${config.borderColor} hover:shadow-lg`
                         }`}
                         style={{
                           animationDelay: `${index * 50}ms`
@@ -715,8 +823,8 @@ const Notificaciones: React.FC = () => {
                                     {n.titulo}
                                   </h4>
                                   {nueva && (
-                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-gradient-to-r from-green-400 to-emerald-500 text-white shadow-sm animate-pulse">
-                                      ✨ NUEVA
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-blue-600 text-white shadow-sm">
+                                      <FaBell className="text-xs" /> NUEVA
                                     </span>
                                   )}
                                   {!n.leida && !nueva && (
@@ -733,27 +841,21 @@ const Notificaciones: React.FC = () => {
                                 <div className="flex items-center gap-2 mb-2 flex-wrap">
                                   {n.estudiante && (
                                     <span className="inline-flex items-center gap-1 text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded-md">
-                                      👤 {n.estudiante}
+                                      <FaExclamationTriangle className="text-xs" /> {n.estudiante}
                                     </span>
                                   )}
                                   {n.area && (
-                                    <span className="inline-flex items-center gap-1 text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-md">
-                                      📚 {n.area}
+                                    <span className="inline-flex items-center gap-1 text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded-md">
+                                      <FaChartLine className="text-xs" /> {n.area}
                                     </span>
                                   )}
                                   {n.curso && (
-                                    <span className="inline-flex items-center gap-1 text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-md">
-                                      🎓 {n.curso}
+                                    <span className="inline-flex items-center gap-1 text-xs bg-blue-50 text-blue-600 px-2 py-1 rounded-md">
+                                      <FaBell className="text-xs" /> {n.curso}
                                     </span>
                                   )}
                                   {n.puntaje !== undefined && (
-                                    <span className={`inline-flex items-center gap-1 text-xs px-2 py-1 rounded-md font-semibold ${
-                                      n.puntaje < 50 
-                                        ? 'bg-red-100 text-red-700' 
-                                        : n.puntaje < 70 
-                                        ? 'bg-yellow-100 text-yellow-700'
-                                        : 'bg-green-100 text-green-700'
-                                    }`}>
+                                    <span className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-md font-semibold bg-blue-50 text-blue-700">
                                       {n.puntaje}%
                                     </span>
                                   )}
@@ -802,7 +904,7 @@ const Notificaciones: React.FC = () => {
           <button
             onClick={cargarMas}
             disabled={cargando}
-            className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-8 py-3 rounded-xl font-semibold shadow-lg transition-all disabled:opacity-50 flex items-center gap-3 mx-auto hover:scale-105"
+            className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-xl font-semibold shadow-lg transition-all disabled:opacity-50 flex items-center gap-3 mx-auto"
           >
             {cargando ? (
               <>
@@ -870,18 +972,26 @@ const FiltroBtn: React.FC<{
   label: string; 
   color?: string;
   onClick: () => void 
-}> = ({ active, label, color = 'gray', onClick }) => (
-  <button
-    onClick={onClick}
-    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-      active 
-        ? `bg-${color}-100 text-${color}-700 border-2 border-${color}-300 shadow-sm` 
-        : 'bg-gray-50 text-gray-600 border border-gray-200 hover:bg-gray-100'
-    }`}
-  >
-    {label}
-  </button>
-);
+}> = ({ active, label, color = 'gray', onClick }) => {
+  const getClasses = () => {
+    if (active) {
+      if (color === 'blue') {
+        return 'bg-blue-100 text-blue-700 border-2 border-blue-300 shadow-sm';
+      }
+      return 'bg-gray-200 text-gray-700 border-2 border-gray-400 shadow-sm';
+    }
+    return 'bg-white text-gray-600 border border-gray-300 hover:bg-gray-50 hover:border-gray-400';
+  };
+
+  return (
+    <button
+      onClick={onClick}
+      className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${getClasses()}`}
+    >
+      {label}
+    </button>
+  );
+};
 
 const SkeletonCard: React.FC = () => (
   <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 animate-pulse">

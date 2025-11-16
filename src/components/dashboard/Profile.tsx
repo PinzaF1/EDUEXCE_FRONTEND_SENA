@@ -4,9 +4,15 @@ import { FaUpload, FaTrash, FaEdit, FaSave, FaTimes, FaImage, FaEye, FaEyeSlash 
 import { useNavigate } from "react-router-dom";
 
 /* ===== BASE URL + helpers de fetch ===== */
-const RAW_BASE = (import.meta as any).env?.VITE_API_URL || "https://unimparted-henrietta-uninspissated.ngrok-free.dev/";
-const BASE_URL = RAW_BASE.replace(/\/+$/, "");
-const api = (path = "") => `${BASE_URL}${path.startsWith("/") ? path : "/" + path}`;
+const RAW_BASE = (import.meta as any).env?.VITE_API_URL;
+
+if (!RAW_BASE) {
+  console.error('❌ VITE_API_URL no configurada');
+  throw new Error('Missing VITE_API_URL environment variable');
+}
+
+const API_BASE_URL = RAW_BASE.replace(/\/+$/, "");
+const api = (path = "") => `${API_BASE_URL}${path.startsWith("/") ? path : "/" + path}`;
 
 const GET_PERFIL_URL = api("/admin/perfil");
 const PUT_PERFIL_URL = api("/admin/perfil");

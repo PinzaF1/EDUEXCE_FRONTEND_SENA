@@ -23,8 +23,13 @@ import { IoChevronDown, IoChevronUp } from "react-icons/io5";
 
 /* ===== API ===== */
 const RAW_BASE =
-  (import.meta as any).env?.VITE_API_URL ||
-  "https://unimparted-henrietta-uninspissated.ngrok-free.dev/";
+  (import.meta as any).env?.VITE_API_URL;
+
+if (!RAW_BASE) {
+  console.error('❌ VITE_API_URL no configurada');
+  throw new Error('Missing VITE_API_URL environment variable');
+}
+
 const API_BASE = RAW_BASE.replace(/\/+$/, "");
 const STUDENTS_URL = `${API_BASE}/admin/estudiantes`;
 
