@@ -18,6 +18,8 @@ import {
   FaGlobe,
   FaLeaf,
   FaComments,
+  FaSpinner,
+  FaExclamationCircle,
 } from "react-icons/fa";
 import { IoChevronDown, IoChevronUp } from "react-icons/io5";
 
@@ -223,6 +225,16 @@ const Seguimiento: React.FC = () => {
   // Estado para el detalle del estudiante
   const [detalleEstudiante, setDetalleEstudiante] = useState<EstudianteDetalle | null>(null);
 
+  // Estados de loading y error
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [toast, setToast] = useState<{msg: string; type: 'success' | 'error'} | null>(null);
+
+  const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 4000);
+  };
+
   useEffect(() => {
     setInstitucion(localStorage.getItem("nombre_institucion") || "");
     setStats({ promedioIcfes: 0, mejoraMes: 0, participantes: 0 });
@@ -261,10 +273,11 @@ const Seguimiento: React.FC = () => {
         }));
       } catch {
         setCursos(baseCursosVacios);
+        console.error('[Tracking] Error cargando estudiantes');
       }
     })();
 
-    // datos “web”
+    // datos "web"
     (async () => {
       try {
         const k = await getJSON<{
@@ -298,9 +311,17 @@ const Seguimiento: React.FC = () => {
               : [],
           }));
           setDetalleRefuerzo(ordered as any);
-        } catch {}
+        } catch {
+          console.error('[Tracking] Error cargando detalle refuerzo');
+        }
         setAtencion(parseAlerta(await getJSON(URL_ALERTA)));
-      } catch {}
+        setLoading(false);
+      } catch (err: any) {
+        console.error('[Tracking] Error cargando datos:', err);
+        setError(err?.message || 'Error al cargar datos');
+        showToast('Error al cargar algunos datos', 'error');
+        setLoading(false);
+      }
     })();
   }, []);
 
@@ -563,8 +584,51 @@ const Seguimiento: React.FC = () => {
   };
 
   /* ===== Render ===== */
+  
+  // Loading state
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-100 p-6">
+        <div className="flex flex-col items-center justify-center py-20">
+          <FaSpinner className="animate-spin text-6xl text-blue-600 mb-4" />
+          <p className="text-gray-600 text-lg font-medium">Cargando datos de seguimiento...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-100 p-6">
+      {/* Toast de error */}
+      {toast && (
+        <div className={`fixed top-20 right-6 z-50 px-6 py-4 rounded-lg shadow-lg animate-fade-in ${
+          toast.type === 'error' ? 'bg-red-500 text-white' : 'bg-green-500 text-white'
+        }`}>
+          <div className="flex items-center gap-3">
+            {toast.type === 'error' ? <FaExclamationCircle className="text-xl" /> : <FaChartLine className="text-xl" />}
+            <span className="font-medium">{toast.msg}</span>
+          </div>
+        </div>
+      )}
+      
+      {/* Error state con botón retry */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+          <div className="flex items-center gap-3">
+            <FaExclamationCircle className="text-red-500 text-xl flex-shrink-0" />
+            <div className="flex-1">
+              <p className="text-red-800 font-medium">Error al cargar datos</p>
+              <p className="text-red-600 text-sm">{error}</p>
+            </div>
+            <button
+              onClick={() => window.location.reload()}
+              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium"
+            >
+              Reintentar
+            </button>
+          </div>
+        </div>
+      )}
       
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5">
