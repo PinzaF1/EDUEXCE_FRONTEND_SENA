@@ -52,6 +52,15 @@ export default defineConfig({
     port: 5173,
     strictPort: false,
     open: false
+    ,
+    proxy: {
+      '/api': {
+        target: 'https://churnable-nimbly-norbert.ngrok-free.dev',
+        changeOrigin: true,
+        secure: true,
+        rewrite: (path) => path.replace(/^\/api/, '')
+      }
+    }
   },
 
   // Preview (build local)
