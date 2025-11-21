@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { Link, useSearchParams, useNavigate } from 'react-router-dom'
 import { FaGraduationCap, FaLock, FaEye, FaEyeSlash } from 'react-icons/fa'
 import { FiCheck } from 'react-icons/fi'
-import { apiUrl, baseHeaders } from '../utils/api'
+import { apiUrl, baseHeaders } from '@/utils/api'
 
 type RestablecerResponse = {
   ok?: boolean

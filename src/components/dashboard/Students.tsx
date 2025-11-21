@@ -3,13 +3,17 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   FaSearch, FaPlus, FaFileUpload, FaEdit, FaTrash,
   FaToggleOn, FaTimes,
-  FaCheckCircle, FaTimesCircle
+  FaCheckCircle, FaTimesCircle, FaSpinner, FaExclamationCircle
 } from "react-icons/fa";
 
 /* API */
 const BASE_URL =
-  (import.meta as any).env?.VITE_API_URL?.replace(/\/+$/, "") ||
-  "https://gillian-semiluminous-blubberingly.ngrok-free.dev";
+  (import.meta as any).env?.VITE_API_URL?.replace(/\/+$/, "");
+
+if (!BASE_URL) {
+  console.error('❌ VITE_API_URL no configurada');
+  throw new Error('Missing VITE_API_URL environment variable');
+}
 const api = (p = "") => {
   const path = p.startsWith("/") ? p : `/${p}`;
   return `${BASE_URL}${path}`;
@@ -136,6 +140,8 @@ const Estudiantes: React.FC = () => {
   const [rows, setRows] = useState<Estudiante[]>([]);
   const [toast, setToast] = useState<{ text: string; type?: "ok" | "err" | "info" } | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   const [grado, setGrado] = useState(""),
     [curso, setCurso] = useState(""),
@@ -190,6 +196,7 @@ const Estudiantes: React.FC = () => {
   const listar = async () => {
     try {
       setLoading(true);
+      setError(null);
       const qs = new URLSearchParams();
       if (grado) qs.set("grado", grado);
       if (curso) qs.set("curso", curso);
@@ -205,7 +212,9 @@ const Estudiantes: React.FC = () => {
       setPage(1);
     } catch (e: any) {
       console.error("Error al cargar estudiantes:", e);
-      say(e.message || "No se pudo cargar", "err");
+      const errorMsg = e.message || "No se pudo cargar la lista de estudiantes";
+      setError(errorMsg);
+      say(errorMsg, "err");
     } finally {
       setLoading(false);
     }
@@ -224,6 +233,7 @@ const Estudiantes: React.FC = () => {
   const onCrear = async (ev: React.FormEvent) => {
     ev.preventDefault();
     try {
+      setSubmitting(true);
       await jfetch(api("/admin/estudiantes"), {
         method: "POST",
         headers: { "Content-Type": "application/json", ...hdrs() },
@@ -236,12 +246,14 @@ const Estudiantes: React.FC = () => {
           jornada: form.jornada || null,
         }),
       });
-      say("Estudiante registrado.", "ok");
+      say("Estudiante registrado exitosamente", "ok");
       setCrear(false);
       setForm({ nombre: "", apellido: "", tipo_documento: "", numero_documento: "", grado: "", curso: "", jornada: "", correo: "", direccion: "" });
       await listar();
     } catch (e: any) {
-      say(e.message || "Error al registrar", "err");
+      say(e.message || "Error al registrar estudiante", "err");
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -249,6 +261,7 @@ const Estudiantes: React.FC = () => {
   const guardarEditar = async () => {
     try {
       if (!edit?.id_usuario) return setEditMsg("Falta id");
+      setSubmitting(true);
       await jfetch(api(`/admin/estudiantes/${edit.id_usuario}`), {
         method: "PUT",
         headers: { "Content-Type": "application/json", ...hdrs() },
@@ -264,11 +277,13 @@ const Estudiantes: React.FC = () => {
           numero_documento: edit.numero_documento,
         }),
       });
-      say("Estudiante actualizado", "ok");
+      say("Estudiante actualizado exitosamente", "ok");
       setEditOpen(false);
       await listar();
     } catch (e: any) {
-      setEditMsg(e.message || "Error al actualizar");
+      setEditMsg(e.message || "Error al actualizar estudiante");
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -529,7 +544,33 @@ const Estudiantes: React.FC = () => {
       {/* Table */}
       <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
         {loading ? (
-          <div className="text-center py-12 text-gray-500">Cargando…</div>
+          <div className="p-6 space-y-4">
+            <div className="flex items-center justify-center gap-3 py-8">
+              <FaSpinner className="animate-spin text-3xl text-blue-600" />
+              <span className="text-gray-600 font-medium">Cargando estudiantes...</span>
+            </div>
+            {[...Array(3)].map((_, i) => (
+              <div key={i} className="animate-pulse flex gap-4 border-t pt-4">
+                <div className="h-12 w-12 bg-gray-200 rounded-full"></div>
+                <div className="flex-1 space-y-2">
+                  <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+                  <div className="h-3 bg-gray-200 rounded w-1/2"></div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : error ? (
+          <div className="text-center py-12">
+            <FaExclamationCircle className="text-5xl text-red-500 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">Error al cargar estudiantes</h3>
+            <p className="text-gray-600 text-sm mb-4">{error}</p>
+            <button
+              onClick={() => listar()}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              Reintentar
+            </button>
+          </div>
         ) : filtrados.length === 0 ? (
           <div className="text-center py-12">
             <h3 className="text-lg font-medium text-gray-600 mb-2">No hay estudiantes</h3>
@@ -669,8 +710,15 @@ const Estudiantes: React.FC = () => {
                 <input value={instName} readOnly className="w-full border border-gray-300 rounded-lg p-3 bg-gray-50 text-gray-700" />
               </div>
               <div className="flex justify-end gap-3 mt-6 pt-4 border-t">
-                <button type="button" className="px-4 py-2 border rounded-lg hover:bg-gray-50" onClick={() => setCrear(false)}>Cancelar</button>
-                <button type="submit" className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Registrar</button>
+                <button type="button" className="px-4 py-2 border rounded-lg hover:bg-gray-50" onClick={() => setCrear(false)} disabled={submitting}>Cancelar</button>
+                <button 
+                  type="submit" 
+                  className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  disabled={submitting}
+                >
+                  {submitting && <FaSpinner className="animate-spin" />}
+                  {submitting ? 'Registrando...' : 'Registrar'}
+                </button>
               </div>
             </form>
           </div>
@@ -707,8 +755,15 @@ const Estudiantes: React.FC = () => {
               </div>
             </div>
             <div className="flex justify-end gap-3 mt-6 pt-4 border-t">
-              <button className="px-4 py-2 border rounded-lg hover:bg-gray-50" onClick={() => setEditOpen(false)}>Cancelar</button>
-              <button className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700" onClick={guardarEditar}>Guardar</button>
+              <button className="px-4 py-2 border rounded-lg hover:bg-gray-50" onClick={() => setEditOpen(false)} disabled={submitting}>Cancelar</button>
+              <button 
+                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2" 
+                onClick={guardarEditar}
+                disabled={submitting}
+              >
+                {submitting && <FaSpinner className="animate-spin" />}
+                {submitting ? 'Guardando...' : 'Guardar'}
+              </button>
             </div>
           </div>
         </div>

@@ -3,9 +3,13 @@
  * Incluye headers de ngrok y manejo de autenticación
  */
 
-// Base URL del backend (con fallback a ngrok)
-const RAW_BASE = (import.meta as any).env?.VITE_API_URL || 
-  "https://gillian-semiluminous-blubberingly.ngrok-free.dev/";
+// Base URL del backend (SIEMPRE desde variable de entorno)
+const RAW_BASE = (import.meta as any).env?.VITE_API_URL;
+
+if (!RAW_BASE) {
+  console.error('❌ VITE_API_URL no está configurada. Revisa tu archivo .env');
+  throw new Error('Missing VITE_API_URL environment variable');
+}
 
 export const API_BASE_URL = RAW_BASE.replace(/\/+$/, ""); // Quitar "/" al final
 
