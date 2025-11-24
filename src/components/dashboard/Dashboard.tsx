@@ -147,10 +147,10 @@ const Dashboard: React.FC = () => {
       setNotificacionesCount(noLeidas);
     };
 
-    window.addEventListener('notificaciones-actualizadas', handleNotificacionesActualizadas);
+    window.addEventListener("notificaciones-actualizadas", handleNotificacionesActualizadas);
 
     return () => {
-      window.removeEventListener('notificaciones-actualizadas', handleNotificacionesActualizadas);
+      window.removeEventListener("notificaciones-actualizadas", handleNotificacionesActualizadas);
     };
   }, [navigate]);
 
@@ -219,19 +219,22 @@ const Dashboard: React.FC = () => {
             {/* Right side */}
             <div className="flex items-center gap-4">
               {/* Notification Icon */}
-              <div className="relative cursor-pointer" onClick={() => navigate("/dashboard/notificaciones")}>
+              <div
+                className="relative cursor-pointer"
+                onClick={() => navigate("/dashboard/notificaciones")}
+              >
                 <FaBell className="text-lg lg:text-xl text-gray-600" />
                 {notificacionesCount > 0 && (
                   <span className="absolute -top-1 -right-1 w-4 h-4 lg:w-5 lg:h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
-                    {notificacionesCount > 9 ? '9+' : notificacionesCount}
+                    {notificacionesCount > 9 ? "9+" : notificacionesCount}
                   </span>
                 )}
               </div>
 
               {/* Profile */}
               <div className="relative z-50" ref={profileRef}>
-                <button 
-                  onClick={() => setOpenProfile(!openProfile)} 
+                <button
+                  onClick={() => setOpenProfile(!openProfile)}
                   className="flex items-center gap-2 lg:gap-3 hover:bg-gray-50 rounded-lg p-1.5 transition-colors"
                 >
                   {avatarUrl ? (
@@ -244,8 +247,12 @@ const Dashboard: React.FC = () => {
                     <div className="w-8 h-8 lg:w-9 lg:h-9 rounded-full bg-gray-300 border-2 border-gray-200" />
                   )}
                   <div className="text-left hidden sm:block">
-                    <div className="text-sm font-semibold text-gray-900">{rol || "Administrador"}</div>
-                    <div className="text-xs text-gray-500">{institucion || "Confandi"}</div>
+                    <div className="text-sm font-semibold text-gray-900">
+                      {rol || "Administrador"}
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      {institucion || "Confandi"}
+                    </div>
                   </div>
                 </button>
 

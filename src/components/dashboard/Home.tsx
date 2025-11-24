@@ -112,8 +112,18 @@ const ORDER_REND: SerieKey[] = [
 
 /* ============ Etiquetas de mes: 2025-septiembre ============ */
 const MESES_ES = [
-  "enero","febrero","marzo","abril","mayo","junio",
-  "julio","agosto","septiembre","octubre","noviembre","diciembre"
+  "enero",
+  "febrero",
+  "marzo",
+  "abril",
+  "mayo",
+  "junio",
+  "julio",
+  "agosto",
+  "septiembre",
+  "octubre",
+  "noviembre",
+  "diciembre",
 ];
 
 const mesLabelES = (raw: string) => {
@@ -147,10 +157,8 @@ const Inicio: React.FC = () => {
 
     const loadAll = async () => {
       try {
-        // Solo mostrar loading en la primera carga
-        if (initialLoad) {
-          setLoading(true);
-        }
+        if (initialLoad) setLoading(true);
+
         /* ===== 1) Activos por área → StatsIslas ===== */
         const islasRes = await getJSON<AreasActivosResp>(
           `${API_BASE}/web/seguimiento/areas/activos`
@@ -176,7 +184,7 @@ const Inicio: React.FC = () => {
           color: COLOR_STATS[nombre],
           nombre,
           total: Number(mapIslas.get(nombre) ?? 0),
-          subtitulo: "", // ← quitamos “estudiantes activos”
+          subtitulo: "",
         }));
         if (!cancelled) setIslas(islasData);
 
@@ -207,7 +215,6 @@ const Inicio: React.FC = () => {
 
         const serieOrdered = Array.from(byMes.values())
           .sort((a, b) => String(a.mes).localeCompare(String(b.mes)))
-          // formateo a “YYYY-mes” en español
           .map((p) => ({ ...p, mes: mesLabelES(p.mes) }));
 
         if (!cancelled) setSerie(serieOrdered);
@@ -229,7 +236,7 @@ const Inicio: React.FC = () => {
           valor: Number(mapRend.get(nombre) ?? 0),
         }));
         if (!cancelled) setRend(rendData);
-        
+
         if (initialLoad) {
           setLoading(false);
           setInitialLoad(false);
@@ -237,7 +244,6 @@ const Inicio: React.FC = () => {
       } catch (e) {
         console.error("[Inicio] Error cargando datos:", e);
         if (!cancelled) {
-          // Solo limpiar en primera carga, mantener datos anteriores en actualizaciones
           if (initialLoad) {
             setIslas([]);
             setSerie([]);
@@ -250,7 +256,6 @@ const Inicio: React.FC = () => {
     };
 
     loadAll();
-    // Actualizar cada 30 segundos en segundo plano
     const int = setInterval(() => {
       if (document.visibilityState === "visible") loadAll();
     }, 30_000);
@@ -259,46 +264,51 @@ const Inicio: React.FC = () => {
       cancelled = true;
       clearInterval(int);
     };
-  }, []);
+  }, [initialLoad]);
 
   return (
     <div className="space-y-6">
       {loading ? (
         <div className="space-y-6">
-          {/* Skeleton para tarjetas de islas */}
+          {/* Skeleton islas */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-5">
             {[...Array(5)].map((_, i) => (
-              <div key={i} className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 animate-pulse">
+              <div
+                key={i}
+                className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 animate-pulse"
+              >
                 <div className="h-16 bg-gray-200 rounded-lg mb-4"></div>
                 <div className="h-4 bg-gray-200 rounded w-3/4"></div>
               </div>
             ))}
           </div>
-          
-          {/* Skeleton para gráficos */}
+
+          {/* Skeleton gráficos */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {[...Array(2)].map((_, i) => (
-              <div key={i} className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 animate-pulse">
+              <div
+                key={i}
+                className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 animate-pulse"
+              >
                 <div className="h-8 bg-gray-200 rounded w-1/2 mb-4"></div>
                 <div className="h-64 bg-gray-200 rounded"></div>
               </div>
             ))}
           </div>
-          
-          {/* Indicador central */}
+
           <div className="flex items-center justify-center py-8">
             <FaSpinner className="animate-spin text-4xl text-blue-600 mr-3" />
-            <span className="text-gray-600 font-medium">Cargando dashboard...</span>
+            <span className="text-gray-600 font-medium">
+              Cargando dashboard...
+            </span>
           </div>
         </div>
       ) : (
         <>
-          {/* Tarjetas de estadísticas */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-5">
             <StatsIslas data={islas} />
           </div>
 
-          {/* Gráficos */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
               <ProgresoPorArea data={serie} />
