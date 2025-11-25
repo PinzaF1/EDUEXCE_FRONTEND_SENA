@@ -33,13 +33,26 @@ const request = async <T>(endpoint: string, options: RequestInit = {}): Promise<
   });
 
   const text = await response.text();
-  const data = text ? JSON.parse(text) : {};
-
-  if (!response.ok) {
-    throw new Error(data.error || data.mensaje || data.detalle || `HTTP ${response.status}`);
+  let data: any = {};
+  if (text) {
+    try {
+      data = JSON.parse(text);
+    } catch (err) {
+      // Response was not JSON (could be HTML error page from upstream). Keep raw text.
+      data = { __raw: text };
+    }
   }
 
-  return data;
+  if (!response.ok) {
+    // Prefer structured messages when available, otherwise include status and raw body
+    const msg = (data && (data.error || data.mensaje || data.detalle || data.message)) || data?.__raw || `HTTP ${response.status}`;
+    const e = new Error(String(msg));
+    (e as any).status = response.status;
+    (e as any).body = data;
+    throw e;
+  }
+
+  return data as T;
 };
 
 // Métodos públicos de API
