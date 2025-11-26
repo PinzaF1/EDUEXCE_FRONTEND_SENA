@@ -1,5 +1,6 @@
 // src/components/dashboard/Home.tsx
 import React, { useEffect, useState } from "react";
+import { FaSpinner } from "react-icons/fa";
 
 // componentes
 import StatsIslas from "@/components/shared/Islas";
@@ -138,12 +139,18 @@ const Inicio: React.FC = () => {
   const [islas, setIslas] = useState<IslaItem[]>([]);
   const [serie, setSerie] = useState<PuntoMes[]>([]);
   const [rend, setRend] = useState<RendItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [initialLoad, setInitialLoad] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
 
     const loadAll = async () => {
       try {
+        // Solo mostrar loading en la primera carga
+        if (initialLoad) {
+          setLoading(true);
+        }
         /* ===== 1) Activos por área → StatsIslas ===== */
         const islasRes = await getJSON<AreasActivosResp>(
           `${API_BASE}/web/seguimiento/areas/activos`
@@ -222,20 +229,31 @@ const Inicio: React.FC = () => {
           valor: Number(mapRend.get(nombre) ?? 0),
         }));
         if (!cancelled) setRend(rendData);
+        
+        if (initialLoad) {
+          setLoading(false);
+          setInitialLoad(false);
+        }
       } catch (e) {
         console.error("[Inicio] Error cargando datos:", e);
         if (!cancelled) {
-          setIslas([]);
-          setSerie([]);
-          setRend([]);
+          // Solo limpiar en primera carga, mantener datos anteriores en actualizaciones
+          if (initialLoad) {
+            setIslas([]);
+            setSerie([]);
+            setRend([]);
+          }
+          setLoading(false);
+          setInitialLoad(false);
         }
       }
     };
 
     loadAll();
+    // Actualizar cada 30 segundos en segundo plano
     const int = setInterval(() => {
       if (document.visibilityState === "visible") loadAll();
-    }, 5_000);
+    }, 30_000);
 
     return () => {
       cancelled = true;
@@ -245,21 +263,53 @@ const Inicio: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Tarjetas de estadísticas */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-5">
-        <StatsIslas data={islas} />
-      </div>
-
-      {/* Gráficos */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-          <ProgresoPorArea data={serie} />
+      {loading ? (
+        <div className="space-y-6">
+          {/* Skeleton para tarjetas de islas */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-5">
+            {[...Array(5)].map((_, i) => (
+              <div key={i} className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 animate-pulse">
+                <div className="h-16 bg-gray-200 rounded-lg mb-4"></div>
+                <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+              </div>
+            ))}
+          </div>
+          
+          {/* Skeleton para gráficos */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {[...Array(2)].map((_, i) => (
+              <div key={i} className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 animate-pulse">
+                <div className="h-8 bg-gray-200 rounded w-1/2 mb-4"></div>
+                <div className="h-64 bg-gray-200 rounded"></div>
+              </div>
+            ))}
+          </div>
+          
+          {/* Indicador central */}
+          <div className="flex items-center justify-center py-8">
+            <FaSpinner className="animate-spin text-4xl text-blue-600 mr-3" />
+            <span className="text-gray-600 font-medium">Cargando dashboard...</span>
+          </div>
         </div>
+      ) : (
+        <>
+          {/* Tarjetas de estadísticas */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-5">
+            <StatsIslas data={islas} />
+          </div>
 
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-          <RendimientoPorArea data={rend} />
-        </div>
-      </div>
+          {/* Gráficos */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+              <ProgresoPorArea data={serie} />
+            </div>
+
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+              <RendimientoPorArea data={rend} />
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 };

@@ -3,18 +3,14 @@
  * Todas las peticiones al backend pasan por aquí
  */
 
-const API_URL = import.meta.env.VITE_API_URL;
-
-if (!API_URL) {
-  console.error('❌ VITE_API_URL no está configurada. Revisa tu archivo .env');
-  throw new Error('Missing VITE_API_URL environment variable');
-}
+const API_URL = import.meta.env.VITE_API_URL ?? '/api';
 
 // Headers base para todas las peticiones
 const getHeaders = (): HeadersInit => ({
   'Content-Type': 'application/json',
   'Accept': 'application/json',
-  'ngrok-skip-browser-warning': 'true',
+  // Solo enviar el header de ngrok en modo desarrollo
+  ...(import.meta.env.DEV ? { 'ngrok-skip-browser-warning': 'true' } : {}),
   ...(localStorage.getItem('token') && {
     'Authorization': `Bearer ${localStorage.getItem('token')}`
   })
@@ -33,13 +29,26 @@ const request = async <T>(endpoint: string, options: RequestInit = {}): Promise<
   });
 
   const text = await response.text();
-  const data = text ? JSON.parse(text) : {};
-
-  if (!response.ok) {
-    throw new Error(data.error || data.mensaje || data.detalle || `HTTP ${response.status}`);
+  let data: any = {};
+  if (text) {
+    try {
+      data = JSON.parse(text);
+    } catch (err) {
+      // Response was not JSON (could be HTML error page from upstream). Keep raw text.
+      data = { __raw: text };
+    }
   }
 
-  return data;
+  if (!response.ok) {
+    // Prefer structured messages when available, otherwise include status and raw body
+    const msg = (data && (data.error || data.mensaje || data.detalle || data.message)) || data?.__raw || `HTTP ${response.status}`;
+    const e = new Error(String(msg));
+    (e as any).status = response.status;
+    (e as any).body = data;
+    throw e;
+  }
+
+  return data as T;
 };
 
 // Métodos públicos de API
@@ -85,7 +94,7 @@ export const api = {
     }),
 
   uploadAvatar: (formData: FormData) =>
-    fetch(`${API_URL}/admin/avatar`, {
+    fetch(`${API_URL}${'/admin/avatar'}`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('token')}`,
@@ -116,7 +125,7 @@ export const api = {
     request(`/estudiantes/${id}/toggle-estado`, { method: 'PUT' }),
 
   uploadStudents: (formData: FormData) =>
-    fetch(`${API_URL}/estudiantes/upload`, {
+    fetch(`${API_URL}${'/estudiantes/upload'}`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('token')}`,
