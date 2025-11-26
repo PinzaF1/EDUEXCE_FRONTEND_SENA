@@ -203,7 +203,7 @@ const Dashboard: React.FC = () => {
       {/* Main Content */}
       <div className="flex-1 lg:ml-60">
         {/* Top Header */}
-        <header className="bg-white border-b border-gray-200 sticky top-0 z-30">
+        <header className="bg-white border-b border-gray-200 sticky top-0 z-30 overflow-visible">
           <div className="py-4 px-4 lg:px-6 flex items-center justify-between gap-4">
             {/* Botón hamburguesa (solo móvil) */}
             <button
@@ -229,37 +229,43 @@ const Dashboard: React.FC = () => {
               </div>
 
               {/* Profile */}
-              <div className="relative" ref={profileRef}>
-                <button onClick={() => setOpenProfile(!openProfile)} className="flex items-center gap-2 lg:gap-3">
+              <div className="relative z-50" ref={profileRef}>
+                <button 
+                  onClick={() => setOpenProfile(!openProfile)} 
+                  className="flex items-center gap-2 lg:gap-3 hover:bg-gray-50 rounded-lg p-1.5 transition-colors"
+                >
                   {avatarUrl ? (
                     <img
                       src={avatarUrl}
                       alt="Avatar"
-                      className="w-7 h-7 lg:w-8 lg:h-8 rounded-full object-cover"
+                      className="w-8 h-8 lg:w-9 lg:h-9 rounded-full object-cover border-2 border-gray-200"
                     />
                   ) : (
-                    <div className="w-7 h-7 lg:w-8 lg:h-8 rounded-full bg-gray-300" />
+                    <div className="w-8 h-8 lg:w-9 lg:h-9 rounded-full bg-gray-300 border-2 border-gray-200" />
                   )}
                   <div className="text-left hidden sm:block">
-                    <div className="text-xs lg:text-sm font-semibold text-gray-900">{rol || "Administrador"}</div>
-                    <div className="text-xs text-gray-600 truncate max-w-[150px]">{institucion || "Normal Superior"}</div>
+                    <div className="text-sm font-semibold text-gray-900">{rol || "Administrador"}</div>
+                    <div className="text-xs text-gray-500">{institucion || "Confandi"}</div>
                   </div>
                 </button>
 
                 {openProfile && (
-                  <div className="absolute right-0 mt-2 w-48 lg:w-56 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
-                    <button
-                      onClick={irPerfil}
-                      className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 rounded-t-lg"
-                    >
-                      Perfil
-                    </button>
-                    <button
-                      onClick={cerrarSesion}
-                      className="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 rounded-b-lg"
-                    >
-                      Cerrar sesión
-                    </button>
+                  <div className="absolute right-0 mt-3 w-52 bg-white rounded-lg shadow-xl border border-gray-200 overflow-hidden">
+                    <div className="py-1">
+                      <button
+                        onClick={irPerfil}
+                        className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors"
+                      >
+                        Ver perfil
+                      </button>
+                      <div className="border-t border-gray-100"></div>
+                      <button
+                        onClick={cerrarSesion}
+                        className="w-full text-left px-4 py-3 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                      >
+                        Cerrar sesión
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>

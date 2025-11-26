@@ -1,6 +1,6 @@
 // src/assets/perfil.tsx
 import React, { useEffect, useMemo, useState } from "react";
-import { FaUpload, FaTrash, FaEdit, FaSave, FaTimes, FaImage, FaEye, FaEyeSlash } from "react-icons/fa";
+import { FaUpload, FaTrash, FaEdit, FaSave, FaTimes, FaImage, FaEye, FaEyeSlash, FaSpinner } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
 
 /* ===== BASE URL + helpers de fetch ===== */
@@ -208,8 +208,9 @@ const Perfil: React.FC = () => {
         }
 
         aplicarInstitution(perfil || null);
-      } catch {
-        show("err", "Error de red al cargar el perfil.");
+      } catch (err: any) {
+        console.error('[Profile] Error cargando perfil:', err);
+        show("err", err?.message || "Error al cargar el perfil. Intente nuevamente.");
       } finally {
         setLoading(false);
       }
@@ -277,8 +278,9 @@ const Perfil: React.FC = () => {
       aplicarInstitution(perfil as PerfilInstitucion);
       show("ok", "Cambios guardados.");
       setEditando(false);
-    } catch {
-      show("err", "Error de red al guardar.");
+    } catch (err: any) {
+      console.error('[Profile] Error guardando perfil:', err);
+      show("err", err?.message || "Error al guardar. Intente nuevamente.");
     } finally {
       setSaving(false);
     }
@@ -333,8 +335,9 @@ const Perfil: React.FC = () => {
       setPassOld("");
       setPassNew("");
       setPassRep("");
-    } catch {
-      show("err", "Error de red.");
+    } catch (err: any) {
+      console.error('[Profile] Error cambiando contraseña:', err);
+      show("err", err?.message || "Error al cambiar contraseña.");
     } finally {
       setPassLoading(false);
     }
@@ -419,7 +422,7 @@ const Perfil: React.FC = () => {
                     disabled={saving}
                     className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-lg text-sm disabled:opacity-60"
                   >
-                    <FaSave />
+                    {saving ? <FaSpinner className="animate-spin" /> : <FaSave />}
                     {saving ? "Guardando..." : "Guardar"}
                   </button>
                   <button
@@ -467,10 +470,11 @@ const Perfil: React.FC = () => {
                 Cancelar
               </button>
               <button
-                className="px-3 py-2 rounded-md text-sm bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-60"
+                className="px-3 py-2 rounded-md text-sm bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-60 inline-flex items-center gap-2"
                 onClick={(e) => { e.preventDefault(); cambiarPassword(); }}
                 disabled={passLoading}
               >
+                {passLoading && <FaSpinner className="animate-spin" />}
                 {passLoading ? "Guardando..." : "Cambiar contraseña"}
               </button>
             </div>
