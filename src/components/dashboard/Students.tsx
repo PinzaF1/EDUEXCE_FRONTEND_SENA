@@ -29,12 +29,38 @@ const token = () => {
     return "";
   }
 };
-const hdrs = () => ({
-  Authorization: `Bearer ${token()}`,
-  "ngrok-skip-browser-warning": "true",
-});
+const hdrs = (includeContentType = false) => {
+  const headers: Record<string, string> = {
+    "Authorization": `Bearer ${token()}`,
+    "ngrok-skip-browser-warning": "true"
+  };
+  
+  if (includeContentType) {
+    headers["Content-Type"] = "application/json";
+  }
+  
+  return headers;
+};
+
 async function jfetch(url: string, init: RequestInit = {}) {
-  const r = await fetch(url, init);
+  const method = init.method || 'GET';
+  const includeContentType = method !== 'GET' && method !== 'HEAD';
+  
+  const defaultInit: RequestInit = {
+    method,
+    headers: {
+      ...hdrs(includeContentType),
+      ...(init.headers || {})
+    },
+    credentials: 'omit',
+    mode: 'cors'
+  };
+  
+  if (init.body) {
+    defaultInit.body = init.body;
+  }
+  
+  const r = await fetch(url, defaultInit);
   const t = await r.text();
   const d = t ? JSON.parse(t) : {};
   if (!r.ok) throw new Error(d.error || d.detalle || `HTTP ${r.status}`);
@@ -205,7 +231,7 @@ const Estudiantes: React.FC = () => {
       qs.set("_ts", String(Date.now()));
       console.log("Cargando estudiantes desde:", api(`/admin/estudiantes?${qs.toString()}`));
       const d = await jfetch(api(`/admin/estudiantes?${qs.toString()}`), {
-        headers: { ...hdrs(), "Cache-Control": "no-cache" },
+        headers: { "Cache-Control": "no-cache" },
       });
       console.log("Respuesta del servidor:", d);
       setRows((Array.isArray(d) ? d : []).map(normRow));

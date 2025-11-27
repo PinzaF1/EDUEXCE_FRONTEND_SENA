@@ -5,6 +5,9 @@
 
 const API_URL = import.meta.env.VITE_API_URL ?? '/api';
 
+console.log('🔧 API_URL configurada:', API_URL);
+console.log('🔧 Variables de entorno:', import.meta.env);
+
 // Headers base para todas las peticiones
 const getHeaders = (): HeadersInit => ({
   'Content-Type': 'application/json',
@@ -19,6 +22,8 @@ const getHeaders = (): HeadersInit => ({
 // Cliente HTTP base
 const request = async <T>(endpoint: string, options: RequestInit = {}): Promise<T> => {
   const url = `${API_URL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
+  
+  console.log('📡 Petición a:', url);
   
   const response = await fetch(url, {
     ...options,
