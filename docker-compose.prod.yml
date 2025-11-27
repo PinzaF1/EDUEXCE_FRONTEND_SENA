@@ -1,38 +1,9 @@
-# ============================================
-# DOCKER COMPOSE - PRODUCCIÓN (Solo Frontend)
-# ============================================
-# Para desplegar solo el frontend en producción
-# ============================================
-
-version: '3.9'
-
 services:
   frontend:
-    container_name: eduexce-frontend
-    image: eduexce/frontend:latest
+    container_name: eduexce_frontend
     build:
       context: .
       dockerfile: Dockerfile
-      args:
-        VITE_API_URL: http://52.20.236.109:3333
-        VITE_ENV: production
     ports:
       - "80:80"
-    environment:
-      - VITE_API_URL=http://52.20.236.109:3333
-      - VITE_ENV=production
     restart: always
-    healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:80/health"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 10s
-    labels:
-      - "com.eduexce.service=frontend"
-      - "com.eduexce.environment=production"
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"

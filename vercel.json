@@ -1,5 +1,5 @@
 {
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "https://eduexce-api.duckdns.org/$1" }
+    { "source": "/api/(.*)", "destination": "https://eduexce.duckdns.org/$1" }
   ]
 }
