@@ -49,9 +49,21 @@ export default defineConfig({
 
   // Servidor de desarrollo
   server: {
-    port: 5173,
+    port: 5174,
     strictPort: false,
-    open: false
+    open: false,
+    proxy: {
+      '/api': {
+        target: 'https://gillian-semiluminous-blubberingly.ngrok-free.dev',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api/, ''),
+        configure: (proxy, _options) => {
+          proxy.on('proxyReq', (proxyReq, _req, _res) => {
+            proxyReq.setHeader('ngrok-skip-browser-warning', 'true');
+          });
+        }
+      }
+    }
   },
 
   // Preview (build local)
