@@ -532,7 +532,7 @@ const Estudiantes: React.FC = () => {
       {/* Filters */}
       <div className="bg-white border border-gray-200 rounded-lg shadow-sm">
         <div className="px-5 py-4 border-b"><span className="text-sm text-gray-700 font-medium">Filtros</span></div>
-        <div className="px-5 py-4 grid grid-cols-3 gap-4">
+        <div className="px-5 py-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           <NiceSelect className="w-full" value={grado} onChange={setGrado}
             options={[{ value: "", label: "Todos los grados" }, { value: "10", label: "10°" }, { value: "11", label: "11°" }]} />
           <NiceSelect className="w-full" value={curso} onChange={setCurso}
@@ -543,7 +543,7 @@ const Estudiantes: React.FC = () => {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         <div 
           className={`rounded-lg border p-4 cursor-pointer transition ${filterActivo === "todos" ? "bg-blue-50 border-blue-300" : "bg-white border-gray-200"}`}
           onClick={() => { setFilterActivo("todos"); setPage(1); }}
@@ -712,16 +712,16 @@ const Estudiantes: React.FC = () => {
               <button className="text-gray-400 hover:text-gray-600" onClick={() => setCrear(false)}>✕</button>
             </div>
             <form onSubmit={onCrear} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <input value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })} placeholder="Nombre" className="w-full border border-gray-300 rounded-lg p-3" required />
                 <input value={form.apellido} onChange={(e) => setForm({ ...form, apellido: e.target.value })} placeholder="Apellido" className="w-full border border-gray-300 rounded-lg p-3" required />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <NiceSelect className="w-full" value={form.tipo_documento} onChange={(v) => setForm({ ...form, tipo_documento: v })}
                   options={[{ value: "", label: "Tipo de Documento" }, { value: "TI", label: "Tarjeta de Identidad" }, { value: "CC", label: "Cédula de Ciudadanía" }, { value: "CE", label: "Cédula de Extranjería" }]} />
                 <input value={form.numero_documento} onChange={(e) => setForm({ ...form, numero_documento: e.target.value })} placeholder="Número de documento" className="w-full border border-gray-300 rounded-lg p-3" required />
               </div>
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <NiceSelect className="w-full" value={form.grado} onChange={(v) => setForm({ ...form, grado: v })}
                   options={[{ value: "", label: "Grado" }, { value: "10", label: "Décimo (10°)" }, { value: "11", label: "Undécimo (11°)" }]} />
                 <NiceSelect className="w-full" value={form.curso} onChange={(v) => setForm({ ...form, curso: v })}
@@ -760,18 +760,18 @@ const Estudiantes: React.FC = () => {
             </div>
             {editMsg && <div className="mb-3 p-2 rounded border border-red-200 bg-red-50 text-red-700 text-sm">{editMsg}</div>}
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <input value={edit.nombre || ""} onChange={(e) => setEdit({ ...edit, nombre: e.target.value })} placeholder="Nombre" className="w-full border border-gray-300 rounded-lg p-3" />
                 <input value={edit.apellido || ""} onChange={(e) => setEdit({ ...edit, apellido: e.target.value })} placeholder="Apellido" className="w-full border border-gray-300 rounded-lg p-3" />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <NiceSelect className="w-full" value={edit.tipo_documento || ""} onChange={(v) => setEdit({ ...edit, tipo_documento: v })}
                   options={[{ value: "", label: "Tipo de Documento" }, { value: "TI", label: "Tarjeta de Identidad" }, { value: "CC", label: "Cédula de Ciudadanía" }, { value: "CE", label: "Cédula de Extranjería" }]} />
                 <input value={edit.numero_documento || ""} onChange={(e) => setEdit({ ...edit, numero_documento: e.target.value })} placeholder="Número de documento" className="w-full border border-gray-300 rounded-lg p-3" />
               </div>
               <input value={edit.correo || ""} onChange={(e) => setEdit({ ...edit, correo: e.target.value })} placeholder="Correo electrónico" className="w-full border border-gray-300 rounded-lg p-3" />
               <input value={edit.direccion || ""} onChange={(e) => setEdit({ ...edit, direccion: e.target.value })} placeholder="Dirección" className="w-full border border-gray-300 rounded-lg p-3" />
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <NiceSelect className="w-full" value={(edit.grado as any) ?? ""} onChange={(v) => setEdit({ ...edit, grado: v })}
                   options={[{ value: "", label: "Grado" }, { value: "10", label: "Décimo (10°)" }, { value: "11", label: "Undécimo (11°)" }]} />
                 <NiceSelect className="w-full" value={edit.curso || ""} onChange={(v) => setEdit({ ...edit, curso: v })}
