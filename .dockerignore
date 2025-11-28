@@ -1,0 +1,40 @@
+node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+dist
+.vite
+dist-ssr
+
+.git
+.github
+
+.env
+.env.local
+.env.development
+.env.test
+.env.*.local
+
+coverage
+.nyc_output
+cypress/videos
+cypress/screenshots
+
+.vscode
+.idea
+*.swp
+*.swo
+*~
+.DS_Store
+
+logs
+*.log
+
+# ❌ NO IGNORAR DOCKERFILE
+# Dockerfile*
+# docker-compose*.yml
+
+.cache
+.temp
+tmp

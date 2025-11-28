@@ -1,0 +1,66 @@
+# ============================================
+# DOCKER COMPOSE - EDUEXCE Frontend
+# ============================================
+# Servicios:
+#   - frontend-dev: Desarrollo con hot-reload
+#   - frontend-prod: Producción con Nginx
+# ============================================
+
+version: '3.9'
+
+services:
+  # ==========================================
+  # SERVICIO: DESARROLLO (Hot Reload)
+  # ==========================================
+  frontend-dev:
+    container_name: eduexce-frontend-dev
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    ports:
+      - "5173:5173"
+    volumes:
+      - .:/app
+      - /app/node_modules  # Evitar sobrescribir node_modules del container
+    environment:
+      - VITE_API_URL=http://52.20.236.109:3333
+      - VITE_ENV=development
+    networks:
+      - eduexce-network
+    restart: unless-stopped
+    stdin_open: true
+    tty: true
+
+  # ==========================================
+  # SERVICIO: PRODUCCIÓN (Nginx)
+  # ==========================================
+  frontend-prod:
+    container_name: eduexce-frontend-prod
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: http://52.20.236.109:3333
+        VITE_ENV: production
+    ports:
+      - "8080:80"
+    environment:
+      - VITE_API_URL=http://52.20.236.109:3333
+      - VITE_ENV=production
+    networks:
+      - eduexce-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+# ==========================================
+# RED COMPARTIDA (para conectar con backend)
+# ==========================================
+networks:
+  eduexce-network:
+    driver: bridge
+    name: eduexce-network
