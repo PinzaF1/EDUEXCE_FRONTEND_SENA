@@ -160,7 +160,7 @@ const InputGroup: React.FC<{
         required={required}
         {...inputProps}
         className="w-full rounded-md border border-slate-200 bg-white pl-8 pr-3 py-2.5 text-sm
-                   outline-none transition-all duration-200 focus:border-transparent focus:ring-2 hover:border-slate-300"
+                   outline-none transition focus:border-transparent focus:ring-2"
         // @ts-ignore
         style={{ '--tw-ring-color': BRAND_MAIN }}
       />
@@ -190,6 +190,7 @@ const RegistroAdm: React.FC = () => {
   const [cargando, setCargando] = useState(false)
   const [verPassword, setVerPassword] = useState(false)
   const [verConfirmar, setVerConfirmar] = useState(false)
+
   const [passwordStrength, setPasswordStrength] = useState<'weak' | 'medium' | 'strong' | null>(null)
 
   const calcularFortaleza = (pwd: string): 'weak' | 'medium' | 'strong' | null => {
@@ -205,12 +206,11 @@ const RegistroAdm: React.FC = () => {
     return 'weak'
   }
 
+
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target
     setForm((prev) => ({ ...prev, [name as keyof FormState]: value } as FormState))
-    if (name === 'password') {
-      setPasswordStrength(calcularFortaleza(value))
-    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -306,7 +306,6 @@ const RegistroAdm: React.FC = () => {
               onChange={handleChange}
               placeholder="Ej: Institución Educativa San José"
               required
-              inputProps={{ autoComplete: 'organization', autoFocus: true }}
             />
 
             <InputGroup
@@ -372,7 +371,6 @@ const RegistroAdm: React.FC = () => {
               onChange={handleChange}
               placeholder="Ej: admin@institucion.edu.co"
               required
-              inputProps={{ autoComplete: 'email' }}
             />
 
             {/* Jornada (dropdown custom azul) */}
@@ -404,51 +402,20 @@ const RegistroAdm: React.FC = () => {
                     onChange={handleChange}
                     placeholder="Mínimo 6 caracteres"
                     required
-                    autoComplete="new-password"
                     className="w-full rounded-md border border-slate-200 bg-white pl-8 pr-9 py-2.5 text-sm
-                               outline-none transition-all duration-200 focus:border-transparent focus:ring-2 hover:border-slate-300"
+                               outline-none transition focus:border-transparent focus:ring-2"
                     // @ts-ignore
                     style={{ '--tw-ring-color': BRAND_MAIN }}
                   />
                   <button
                     type="button"
                     onClick={() => setVerPassword((s) => !s)}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-[#3B82F6] rounded p-1"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                     aria-label={verPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
-                    tabIndex={-1}
                   >
                     {verPassword ? <FaEyeSlash /> : <FaEye />}
                   </button>
                 </div>
-                {/* Indicador de fortaleza */}
-                {form.password && passwordStrength && (
-                  <div className="mt-1.5 animate-in fade-in slide-in-from-top-1 duration-300">
-                    <div className="flex gap-1">
-                      <div className={`h-1 flex-1 rounded-full transition-all duration-300 ${
-                        passwordStrength === 'weak' ? 'bg-red-500' :
-                        passwordStrength === 'medium' ? 'bg-yellow-500' :
-                        'bg-green-500'
-                      }`} />
-                      <div className={`h-1 flex-1 rounded-full transition-all duration-300 ${
-                        passwordStrength === 'medium' ? 'bg-yellow-500' :
-                        passwordStrength === 'strong' ? 'bg-green-500' :
-                        'bg-slate-200'
-                      }`} />
-                      <div className={`h-1 flex-1 rounded-full transition-all duration-300 ${
-                        passwordStrength === 'strong' ? 'bg-green-500' : 'bg-slate-200'
-                      }`} />
-                    </div>
-                    <p className={`mt-1 text-[10px] font-medium ${
-                      passwordStrength === 'weak' ? 'text-red-600' :
-                      passwordStrength === 'medium' ? 'text-yellow-600' :
-                      'text-green-600'
-                    }`}>
-                      {passwordStrength === 'weak' ? '⚠️ Débil: Use mayúsculas, números y símbolos' :
-                       passwordStrength === 'medium' ? '🔒 Media: Agregue más caracteres o símbolos' :
-                       '✅ Fuerte: Contraseña segura'}
-                    </p>
-                  </div>
-                )}
               </div>
 
               <div className="space-y-1.5">
@@ -466,59 +433,42 @@ const RegistroAdm: React.FC = () => {
                     onChange={handleChange}
                     placeholder="Repita la contraseña"
                     required
-                    autoComplete="new-password"
-                    className={`w-full rounded-md border bg-white pl-8 pr-9 py-2.5 text-sm
-                               outline-none transition-all duration-200 focus:border-transparent focus:ring-2 hover:border-slate-300 ${
-                                 form.confirm_password && form.password !== form.confirm_password
-                                   ? 'border-red-300 focus:ring-red-500'
-                                   : 'border-slate-200'
-                               }`}
+                    className="w-full rounded-md border border-slate-200 bg-white pl-8 pr-9 py-2.5 text-sm
+                               outline-none transition focus:border-transparent focus:ring-2"
                     // @ts-ignore
-                    style={{ '--tw-ring-color': form.confirm_password && form.password !== form.confirm_password ? '#ef4444' : BRAND_MAIN }}
+                    style={{ '--tw-ring-color': BRAND_MAIN }}
                   />
                   <button
                     type="button"
                     onClick={() => setVerConfirmar((s) => !s)}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-[#3B82F6] rounded p-1"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                     aria-label={verConfirmar ? 'Ocultar contraseña' : 'Mostrar contraseña'}
-                    tabIndex={-1}
                   >
                     {verConfirmar ? <FaEyeSlash /> : <FaEye />}
                   </button>
                 </div>
-                {/* Validación de coincidencia */}
-                {form.confirm_password && (
-                  <p className={`mt-1 text-[10px] font-medium animate-in fade-in slide-in-from-top-1 duration-300 ${
-                    form.password === form.confirm_password ? 'text-green-600' : 'text-red-600'
-                  }`}>
-                    {form.password === form.confirm_password ? '✅ Las contraseñas coinciden' : '⚠️ Las contraseñas no coinciden'}
-                  </p>
-                )}
               </div>
             </div>
 
             {/* Botón */}
             <button
               type="submit"
-              disabled={cargando || (form.password && form.confirm_password && form.password !== form.confirm_password)}
+              disabled={cargando}
               className="mt-2 inline-flex w-full items-center justify-center rounded-md px-4 py-2.5
-                         font-semibold text-white shadow-md transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed
-                         hover:shadow-lg hover:scale-[1.02] active:scale-[0.98]"
+                         font-semibold text-white shadow-md transition disabled:opacity-60"
               style={{ background: `linear-gradient(135deg, ${BRAND_DARK} 0%, ${BRAND_MAIN} 100%)` }}
             >
               {cargando ? 'Registrando…' : 'Registrar Institución'}
             </button>
 
             {mensaje && (
-              <div className={`rounded-lg px-3 py-2 animate-in fade-in slide-in-from-top-1 duration-300 ${
-                esExito ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'
-              }`}>
-                <p className={`text-center text-xs font-medium ${
-                  esExito ? 'text-green-700' : 'text-red-700'
-                }`}>
-                  {mensaje}
-                </p>
-              </div>
+              <p 
+                className={`text-center text-xs font-medium ${
+                  esExito ? 'text-green-600' : 'text-red-500'
+                }`}
+              >
+                {mensaje}
+              </p>
             )}
 
             <p className="mt-3 text-center text-xs text-slate-600">
