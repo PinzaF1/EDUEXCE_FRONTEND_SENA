@@ -91,7 +91,7 @@ export default defineConfig({
     open: false,
     proxy: {
       '/api': {
-        target: 'https://churnable-nimbly-norbert.ngrok-free.dev',
+        target: 'https://gillian-semiluminous-blubberingly.ngrok-free.dev',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, ''),
         configure: (proxy, _options) => {
