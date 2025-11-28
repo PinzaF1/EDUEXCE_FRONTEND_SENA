@@ -3,6 +3,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { Outlet, useNavigate } from "react-router-dom";
 import { IoMenuOutline } from "react-icons/io5";
 import { FaBell } from "react-icons/fa";
+import { ROUTES } from "@/utils/constants";
 import Sidebar from "./Sidebar";
 
 /* ===== Base URL (sin / al final) ===== */
@@ -54,7 +55,7 @@ const Dashboard: React.FC = () => {
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token) {
-      navigate("/", { replace: true });
+      navigate(ROUTES.LOGIN, { replace: true });
       return;
     }
 
@@ -75,7 +76,7 @@ const Dashboard: React.FC = () => {
 
         if (res.status === 401) {
           localStorage.clear();
-          navigate("/", { replace: true });
+          navigate(ROUTES.LOGIN, { replace: true });
           return;
         }
 
