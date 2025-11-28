@@ -1,39 +1,26 @@
-# ============================================
-# DOCKERIGNORE - Excluir archivos innecesarios
-# ============================================
-# Reduce tamaño de la imagen y acelera build
-# ============================================
-
-# Node modules (se instalan en el container)
 node_modules
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# Build output (se genera en el container)
 dist
 .vite
 dist-ssr
 
-# Git
 .git
-.gitignore
 .github
 
-# Entornos locales
 .env
 .env.local
 .env.development
 .env.test
 .env.*.local
 
-# Testing
 coverage
 .nyc_output
 cypress/videos
 cypress/screenshots
 
-# Editor
 .vscode
 .idea
 *.swp
@@ -41,20 +28,13 @@ cypress/screenshots
 *~
 .DS_Store
 
-# Logs
 logs
 *.log
 
-# Docker
-Dockerfile*
-docker-compose*.yml
-.dockerignore
+# ❌ NO IGNORAR DOCKERFILE
+# Dockerfile*
+# docker-compose*.yml
 
-# Documentation
-*.md
-!README.md
-
-# Misc
 .cache
 .temp
 tmp
