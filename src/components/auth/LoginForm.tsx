@@ -1,9 +1,9 @@
 import React, { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { FaEnvelope, FaLock, FaEye, FaEyeSlash, FaGraduationCap } from 'react-icons/fa'
 import { FiArrowRight } from 'react-icons/fi'
 import { useAuth } from '@/hooks/useAuth'
-import { ROUTES, BRAND_COLORS, MESSAGES } from '@/utils/constants'
+import { ROUTES, BRAND_COLORS } from '@/utils/constants'
 
 const LoginForm: React.FC = () => {
   const [correo, setCorreo] = useState('')
@@ -12,16 +12,38 @@ const LoginForm: React.FC = () => {
   const [loading, setLoading] = useState(false)
   const [showPwd, setShowPwd] = useState(false)
   const { login } = useAuth()
+  const navigate = useNavigate()
+  const location = useLocation()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setMensaje('')
     setLoading(true)
-    
+
     try {
-      await login(correo, password)
+      const res: any = await login(correo, password)
+
+      // Guardar token si no existe
+      try {
+        const existing = localStorage.getItem('token')
+        if (!existing && res && res.token) {
+          localStorage.setItem('token', res.token)
+        }
+      } catch {}
+
+      const params = new URLSearchParams(location.search)
+      const next = params.get('next') || '/dashboard'
+      navigate(next)
     } catch (error: any) {
-      setMensaje(error.message || MESSAGES.LOGIN_ERROR)
+      // Mensaje legible para usuario y test
+      const text = error?.message || ''
+      if (text.toLowerCase().includes('credencial') || text.toLowerCase().includes('incorrecta')) {
+        setMensaje('Credenciales incorrectas')
+      } else if (text.toLowerCase().includes('network') || text.toLowerCase().includes('fetch')) {
+        setMensaje('No se pudo conectar al servidor')
+      } else {
+        setMensaje('Ocurrió un error, intente nuevamente')
+      }
     } finally {
       setLoading(false)
     }
@@ -29,19 +51,17 @@ const LoginForm: React.FC = () => {
 
   return (
     <div className="min-h-screen w-full bg-gradient-to-b from-[#F7FAFF] via-[#F9FBFF] to-white">
-      {/* Volver */}
       <div className="mx-auto w-full max-w-5xl px-5 pt-4">
         <Link
           to={ROUTES.LANDING}
           className="inline-flex items-center gap-2 text-sm text-slate-600 hover:text-slate-800 transition-colors"
+          data-cy="link-volver-inicio"
         >
           <span aria-hidden>←</span> Volver al inicio
         </Link>
       </div>
 
-      {/* Contenido */}
       <div className="mx-auto flex min-h-[80vh] w-full max-w-5xl flex-col items-center px-4 pb-16">
-        {/* Icono + título */}
         <div
           className="mt-8 flex h-14 w-14 items-center justify-center rounded-2xl shadow-lg"
           style={{ background: `linear-gradient(135deg, ${BRAND_COLORS.DARK}, ${BRAND_COLORS.MAIN})` }}
@@ -57,7 +77,6 @@ const LoginForm: React.FC = () => {
           Acceda al dashboard institucional
         </p>
 
-        {/* Card formulario */}
         <div className="mt-6 w-full max-w-xl rounded-2xl border border-slate-100 bg-white p-6 shadow-xl">
           <h2 className="text-left text-lg font-semibold text-slate-900">Credenciales de Acceso</h2>
           <p className="mt-1 text-[13px] text-slate-500">
@@ -65,7 +84,6 @@ const LoginForm: React.FC = () => {
           </p>
 
           <form onSubmit={handleSubmit} className="mt-4 space-y-4 text-sm">
-            {/* Correo */}
             <div>
               <label className="mb-1 block text-[12px] font-medium text-slate-700">
                 Correo Institucional
@@ -73,94 +91,88 @@ const LoginForm: React.FC = () => {
               <div className="relative">
                 <FaEnvelope className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
+                  data-cy="input-email"
                   type="email"
                   value={correo}
                   onChange={(e) => setCorreo(e.target.value)}
                   placeholder="admin@institucion.edu.co"
                   required
-                  autoComplete="email"
-                  autoFocus
-                  className="w-full rounded-lg border border-slate-200 bg-white pl-10 pr-3 py-2.5 outline-none transition-all duration-200
-                             focus:border-transparent focus:ring-2 focus:ring-[#3B82F6] hover:border-slate-300"
+                  className="w-full rounded-lg border border-slate-200 bg-white pl-10 pr-3 py-2.5 outline-none transition
+                             focus:border-transparent focus:ring-2 focus:ring-[#3B82F6]"
                 />
               </div>
             </div>
 
-            {/* Password */}
             <div>
               <div className="mb-1 flex items-center justify-between">
                 <label className="block text-[12px] font-medium text-slate-700">Contraseña</label>
-                <Link to={ROUTES.PASSWORD_RESET} className="text-[12px] font-medium" style={{ color: BRAND_COLORS.MAIN }}>
+                <Link
+                  to={ROUTES.PASSWORD_RESET}
+                  data-cy="link-olvido"
+                  className="text-[12px] font-medium"
+                  style={{ color: BRAND_COLORS.MAIN }}
+                >
                   ¿Olvidó su contraseña?
                 </Link>
               </div>
               <div className="relative">
                 <FaLock className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
+                  data-cy="input-password"
                   type={showPwd ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
                   required
-                  autoComplete="current-password"
-                  className="w-full rounded-lg border border-slate-200 bg-white pl-10 pr-10 py-2.5 outline-none transition-all duration-200
-                             focus:border-transparent focus:ring-2 focus:ring-[#3B82F6] hover:border-slate-300"
+                  className="w-full rounded-lg border border-slate-200 bg-white pl-10 pr-10 py-2.5 outline-none transition
+                             focus:border-transparent focus:ring-2 focus:ring-[#3B82F6]"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPwd((s) => !s)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-[#3B82F6] rounded p-1"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                   aria-label={showPwd ? 'Ocultar contraseña' : 'Mostrar contraseña'}
-                  tabIndex={-1}
+                  data-cy="btn-toggle-password"
                 >
                   {showPwd ? <FaEyeSlash /> : <FaEye />}
                 </button>
               </div>
             </div>
 
-            {/* Submit */}
             <button
+              data-cy="btn-login-submit"
               type="submit"
-              disabled={loading || !correo || !password}
-              className="mt-1 inline-flex w-full items-center justify-center gap-2 rounded-lg px-4 py-2.5 font-semibold text-white shadow-md transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed hover:shadow-lg hover:scale-[1.02] active:scale-[0.98]"
+              disabled={loading}
+              className="mt-1 inline-flex w-full items-center justify-center gap-2 rounded-lg px-4 py-2.5 font-semibold text-white shadow-md transition disabled:opacity-60"
               style={{ background: `linear-gradient(135deg, ${BRAND_COLORS.DARK}, ${BRAND_COLORS.MAIN})` }}
             >
               <FiArrowRight className="-ml-1" />
               {loading ? 'Ingresando…' : 'Iniciar Sesión'}
             </button>
 
+            {/* Mensaje de error / info */}
             {mensaje && (
-              <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 animate-in fade-in slide-in-from-top-1 duration-300">
-                <p className="text-center text-xs font-medium text-red-700">{mensaje}</p>
-              </div>
+              <p
+                className="text-center text-xs font-medium text-red-500"
+                role="alert"
+                data-cy="login-alert"
+                data-error-type="auth"
+              >
+                {mensaje}
+              </p>
             )}
           </form>
 
-          {/* Registro */}
           <div className="mt-5 text-center text-[13px] text-slate-600">
             ¿No tiene una cuenta?{' '}
-            <Link to={ROUTES.REGISTER} className="font-semibold" style={{ color: BRAND_COLORS.MAIN }}>
+            <Link
+              to={ROUTES.REGISTER}
+              data-cy="link-registrar"
+              className="font-semibold"
+              style={{ color: BRAND_COLORS.MAIN }}
+            >
               Registrar institución
             </Link>
-          </div>
-        </div>
-
-        {/* Banda informativa */}
-        <div className="mx-auto mt-6 w-full max-w-xl rounded-2xl border border-[#E8EEFF] bg-[#F4F7FF] px-5 py-4">
-          <div className="flex items-start gap-3">
-            <div
-              className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-lg text-white"
-              style={{ background: `linear-gradient(135deg, ${BRAND_COLORS.DARK}, ${BRAND_COLORS.MAIN})` }}
-              aria-hidden
-            >
-              <FaGraduationCap size={16} className="text-white" />
-            </div>
-            <div className="text-sm">
-              <p className="font-semibold text-slate-800">¿Es estudiante?</p>
-              <p className="text-[13px] text-slate-600">
-                Descargue la app móvil para acceder a las actividades de aprendizaje.
-              </p>
-            </div>
           </div>
         </div>
       </div>

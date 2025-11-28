@@ -3,6 +3,7 @@ import React from "react";
 import { NavLink } from "react-router-dom";
 import { IoHomeOutline, IoPeopleOutline, IoStatsChartOutline, IoNotificationsOutline, IoCloseOutline } from "react-icons/io5";
 import { FaGraduationCap } from "react-icons/fa";
+import { useAuth } from '@/hooks/useAuth'
 
 interface SidebarProps {
   isOpen: boolean;
@@ -20,6 +21,8 @@ const AppLogo: React.FC<{ className?: string }> = ({ className = "" }) => (
 );
 
 const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
+  const { logout } = useAuth()
+
   return (
     <>
       {/* Overlay para cerrar sidebar en móvil */}
@@ -141,6 +144,21 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
             )}
           </NavLink>
         </nav>
+
+        {/* Logout */}
+        <div className="absolute bottom-6 left-4 right-4">
+          <button
+            data-cy="logout-btn"
+            onClick={() => {
+              try { logout() } catch (e) {}
+              // ensure frontend local cleanup for tests
+              try { localStorage.removeItem('token') } catch (e) {}
+            }}
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-red-600 hover:bg-red-50 transition-colors justify-center"
+          >
+            <span>Cerrar sesión</span>
+          </button>
+        </div>
       </aside>
     </>
   );
