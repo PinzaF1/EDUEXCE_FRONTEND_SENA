@@ -78,8 +78,10 @@ const LoginForm: React.FC = () => {
                   onChange={(e) => setCorreo(e.target.value)}
                   placeholder="admin@institucion.edu.co"
                   required
-                  className="w-full rounded-lg border border-slate-200 bg-white pl-10 pr-3 py-2.5 outline-none transition
-                             focus:border-transparent focus:ring-2 focus:ring-[#3B82F6]"
+                  autoComplete="email"
+                  autoFocus
+                  className="w-full rounded-lg border border-slate-200 bg-white pl-10 pr-3 py-2.5 outline-none transition-all duration-200
+                             focus:border-transparent focus:ring-2 focus:ring-[#3B82F6] hover:border-slate-300"
                 />
               </div>
             </div>
@@ -100,14 +102,16 @@ const LoginForm: React.FC = () => {
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
                   required
-                  className="w-full rounded-lg border border-slate-200 bg-white pl-10 pr-10 py-2.5 outline-none transition
-                             focus:border-transparent focus:ring-2 focus:ring-[#3B82F6]"
+                  autoComplete="current-password"
+                  className="w-full rounded-lg border border-slate-200 bg-white pl-10 pr-10 py-2.5 outline-none transition-all duration-200
+                             focus:border-transparent focus:ring-2 focus:ring-[#3B82F6] hover:border-slate-300"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPwd((s) => !s)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-[#3B82F6] rounded p-1"
                   aria-label={showPwd ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                  tabIndex={-1}
                 >
                   {showPwd ? <FaEyeSlash /> : <FaEye />}
                 </button>
@@ -117,8 +121,8 @@ const LoginForm: React.FC = () => {
             {/* Submit */}
             <button
               type="submit"
-              disabled={loading}
-              className="mt-1 inline-flex w-full items-center justify-center gap-2 rounded-lg px-4 py-2.5 font-semibold text-white shadow-md transition disabled:opacity-60"
+              disabled={loading || !correo || !password}
+              className="mt-1 inline-flex w-full items-center justify-center gap-2 rounded-lg px-4 py-2.5 font-semibold text-white shadow-md transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed hover:shadow-lg hover:scale-[1.02] active:scale-[0.98]"
               style={{ background: `linear-gradient(135deg, ${BRAND_COLORS.DARK}, ${BRAND_COLORS.MAIN})` }}
             >
               <FiArrowRight className="-ml-1" />
@@ -126,7 +130,9 @@ const LoginForm: React.FC = () => {
             </button>
 
             {mensaje && (
-              <p className="text-center text-xs font-medium text-red-500">{mensaje}</p>
+              <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 animate-in fade-in slide-in-from-top-1 duration-300">
+                <p className="text-center text-xs font-medium text-red-700">{mensaje}</p>
+              </div>
             )}
           </form>
 
