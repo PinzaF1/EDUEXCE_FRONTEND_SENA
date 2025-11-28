@@ -42,8 +42,14 @@ export const useAuth = () => {
       setIsAuthenticated(true);
       setUser(storage.getUser());
 
-      // Navegar al dashboard
-      navigate(ROUTES.DASHBOARD, { replace: true });
+      // Redirigir a la ruta guardada o al dashboard
+      const redirectPath = sessionStorage.getItem('redirectAfterLogin')
+      if (redirectPath) {
+        sessionStorage.removeItem('redirectAfterLogin')
+        navigate(redirectPath, { replace: true })
+      } else {
+        navigate(ROUTES.DASHBOARD, { replace: true })
+      }
     } catch (error) {
       throw error;
     }

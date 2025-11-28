@@ -191,6 +191,23 @@ const RegistroAdm: React.FC = () => {
   const [verPassword, setVerPassword] = useState(false)
   const [verConfirmar, setVerConfirmar] = useState(false)
 
+  const [passwordStrength, setPasswordStrength] = useState<'weak' | 'medium' | 'strong' | null>(null)
+
+  const calcularFortaleza = (pwd: string): 'weak' | 'medium' | 'strong' | null => {
+    if (!pwd) return null
+    if (pwd.length < 6) return 'weak'
+    const tieneNumero = /\d/.test(pwd)
+    const tieneMayuscula = /[A-Z]/.test(pwd)
+    const tieneMinuscula = /[a-z]/.test(pwd)
+    const tieneEspecial = /[^A-Za-z0-9]/.test(pwd)
+    const criterios = [tieneNumero, tieneMayuscula, tieneMinuscula, tieneEspecial].filter(Boolean).length
+    if (pwd.length >= 10 && criterios >= 3) return 'strong'
+    if (pwd.length >= 8 && criterios >= 2) return 'medium'
+    return 'weak'
+  }
+
+
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target
     setForm((prev) => ({ ...prev, [name as keyof FormState]: value } as FormState))
