@@ -191,7 +191,6 @@ const RegistroAdm: React.FC = () => {
   const [verPassword, setVerPassword] = useState(false)
   const [verConfirmar, setVerConfirmar] = useState(false)
   const [passwordStrength, setPasswordStrength] = useState<'weak' | 'medium' | 'strong' | null>(null)
-  const [passwordStrength, setPasswordStrength] = useState<'weak' | 'medium' | 'strong' | null>(null)
 
   const calcularFortaleza = (pwd: string): 'weak' | 'medium' | 'strong' | null => {
     if (!pwd) return null
