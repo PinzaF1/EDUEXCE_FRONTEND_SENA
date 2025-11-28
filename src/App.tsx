@@ -6,6 +6,7 @@ import LoginForm from '@/components/auth/LoginForm'
 import RegisterForm from '@/components/auth/RegisterForm'
 import PasswordRequest from '@/components/auth/PasswordRequest'
 import PasswordReset from '@/components/auth/PasswordReset'
+import ProtectedRoute from '@/components/auth/ProtectedRoute'
 
 // Landing - Carga inmediata (primera página)
 import Landing from '@/components/landing/Landing'
@@ -50,7 +51,7 @@ function App() {
             element={<Navigate to="/dashboard/configuracion?view=password" replace />}
           />
 
-          <Route path="/dashboard" element={<Dashboard />}>
+          <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>}>
             <Route index element={<Home />} />
             <Route path="estudiantes" element={<Students />} />
             <Route path="seguimiento" element={<Tracking />} />
