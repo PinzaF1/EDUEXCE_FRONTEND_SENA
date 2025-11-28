@@ -4,11 +4,10 @@
  */
 
 // Base URL del backend (SIEMPRE desde variable de entorno)
-const RAW_BASE = (import.meta as any).env?.VITE_API_URL;
+const RAW_BASE = (import.meta as any).env?.VITE_API_URL || '/api';
 
-if (!RAW_BASE) {
-  console.error('❌ VITE_API_URL no está configurada. Revisa tu archivo .env');
-  throw new Error('Missing VITE_API_URL environment variable');
+if (!RAW_BASE || RAW_BASE === 'undefined') {
+  console.warn('⚠️ VITE_API_URL no está configurada, usando /api por defecto');
 }
 
 export const API_BASE_URL = RAW_BASE.replace(/\/+$/, ""); // Quitar "/" al final

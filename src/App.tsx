@@ -21,8 +21,6 @@ import Notifications from '@/components/dashboard/Notifications'
 import Profile from '@/components/dashboard/Profile'
 import Settings from '@/components/dashboard/Settings'
 
-import ProtectedRoute from '@/components/ProtectedRoute'
-
 function App() {
   return (
     <Router>
