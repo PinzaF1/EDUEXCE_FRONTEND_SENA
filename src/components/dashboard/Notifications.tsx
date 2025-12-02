@@ -1,5 +1,7 @@
 // src/assets/Notificaciones.tsx
 import React, { useMemo, useState, useEffect, useRef } from "react";
+import storage from "../../utils/storage";
+import { getJSON, postJSON, deleteJSON } from "../../utils/api";
 import {
   FaBell,
   FaRegClock,
@@ -15,15 +17,9 @@ import {
   FaVolumeUp,
 } from "react-icons/fa";
 
-const RAW_BASE =
-  (import.meta as any).env?.VITE_API_URL;
-
-if (!RAW_BASE) {
-  console.error('❌ VITE_API_URL no configurada');
-  throw new Error('Missing VITE_API_URL environment variable');
-}
-
-const API_BASE = RAW_BASE.replace(/\/+$/, "");
+// Usamos el cliente central (`src/utils/api`) para construir URLs y manejar headers.
+// Eliminamos dependencias directas a VITE_API_URL aquí para asegurar que todas
+// las peticiones pasen por el proxy en desarrollo.
 
 /* ===================== Tipos ===================== */
 type TipoNoti = "inactividad" | "puntaje_bajo" | "progreso_lento" | "area_critica" | "estudiante_alerta" | "puntaje_bajo_inmediato" | "inactividad_30d";
@@ -225,17 +221,8 @@ const Notificaciones: React.FC = () => {
       if (tab === 'no_leidas') params.append('leida', 'false');
       if (filtroTipo !== 'todos') params.append('tipo', filtroTipo);
 
-      const res = await fetch(`${API_BASE}/admin/notificaciones?${params}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "ngrok-skip-browser-warning": "true",
-        },
-        cache: "no-store",
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        const notifs = data.notificaciones || [];
+      const data = await getJSON<any>(`/admin/notificaciones?${params}`);
+      const notifs = data.notificaciones || [];
         
         // Backend ahora filtra automáticamente las eliminadas (campo 'eliminada' = false)
         const mapeadas: Noti[] = notifs.map((n: any) => {
@@ -278,7 +265,6 @@ const Notificaciones: React.FC = () => {
         
         setPaginacion(data.paginacion || null);
         setPaginaActual(page);
-      }
     } catch (error) {
       console.error("Error cargando notificaciones:", error);
       mostrarToast("Error al cargar notificaciones", "error");
@@ -317,17 +303,8 @@ const Notificaciones: React.FC = () => {
     // Función para verificar nuevas notificaciones
     const verificarNuevas = async () => {
       try {
-        const res = await fetch(`${API_BASE}/admin/notificaciones?page=1&limit=5&leida=false`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "ngrok-skip-browser-warning": "true",
-          },
-          cache: "no-store",
-        });
-
-        if (res.ok) {
-          const data = await res.json();
-          const notifs = data.notificaciones || [];
+        const data = await getJSON<any>(`/admin/notificaciones?page=1&limit=5&leida=false`);
+        const notifs = data.notificaciones || [];
           
           // Backend ya filtra las eliminadas automáticamente
           // Verificar si hay notificaciones nuevas usando callback para evitar stale closure
@@ -377,7 +354,6 @@ const Notificaciones: React.FC = () => {
 
             return prevNotis;
           });
-        }
       } catch (error) {
         console.warn('[Polling] Error verificando notificaciones:', error);
       }
@@ -470,15 +446,7 @@ const Notificaciones: React.FC = () => {
         return updated;
       });
 
-      await fetch(`${API_BASE}/admin/notificaciones/marcar`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-          "ngrok-skip-browser-warning": "true",
-        },
-        body: JSON.stringify({ ids: [id] }),
-      });
+      await postJSON(`/admin/notificaciones/marcar`, { ids: [id] });
     } catch (error) {
       console.error("Error marcando como leída:", error);
       mostrarToast("Error al marcar como leída", "error");
@@ -496,15 +464,7 @@ const Notificaciones: React.FC = () => {
       // Optimistic update
       setNotis((arr) => arr.map((n) => ({ ...n, leida: true })));
 
-      await fetch(`${API_BASE}/admin/notificaciones/marcar`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-          "ngrok-skip-browser-warning": "true",
-        },
-        body: JSON.stringify({ ids: idsNoLeidas }),
-      });
+      await postJSON(`/admin/notificaciones/marcar`, { ids: idsNoLeidas });
 
       mostrarToast("Todas las notificaciones marcadas como leídas", "success");
     } catch (error) {
@@ -522,24 +482,26 @@ const Notificaciones: React.FC = () => {
       setNotis((arr) => arr.filter(n => n.id !== id));
 
       // Llamada real al backend (soft delete)
-      const res = await fetch(`${API_BASE}/admin/notificaciones/${id}`, {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "ngrok-skip-browser-warning": "true",
-        },
-      });
-
-      if (!res.ok) {
-        throw new Error('Error al eliminar notificación');
-      }
+      await deleteJSON(`/admin/notificaciones/${id}`);
 
       mostrarToast("Notificación eliminada", "success");
     } catch (error) {
       console.error("Error eliminando notificación:", error);
-      // Revertir optimistic update en caso de error
-      await cargarNotificaciones(paginaActual);
-      mostrarToast("Error al eliminar", "error");
+      // En vez de romper la UX, encolar la eliminación y mantenerla oculta localmente
+      try {
+        const idNum = Number(id as any);
+        if (!Number.isNaN(idNum)) {
+          storage.pushDeletedIds(idNum);
+          mostrarToast('Notificación ocultada localmente. Se reintentará la eliminación en segundo plano.', 'success');
+        } else {
+          // Si no es numérico, recargar para evitar inconsistencia
+          await cargarNotificaciones(paginaActual);
+          mostrarToast('Error al eliminar', 'error');
+        }
+      } catch (err) {
+        await cargarNotificaciones(paginaActual);
+        mostrarToast('Error al eliminar', 'error');
+      }
     }
   };
 
@@ -558,31 +520,60 @@ const Notificaciones: React.FC = () => {
         return;
       }
 
-      // Optimistic update
-      setNotis((arr) => arr.filter(n => !ids.includes(n.id)));
+      // Optimistic update (normalize id to number for comparison)
+      setNotis((arr) => arr.filter(n => !ids.includes(Number(n.id))));
 
-      const res = await fetch(`${API_BASE}/admin/notificaciones/eliminar-multiples`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-          "ngrok-skip-browser-warning": "true",
-        },
-        body: JSON.stringify({ ids }),
-      });
-
-      if (!res.ok) {
-        throw new Error('Error al eliminar múltiples notificaciones');
-      }
-
-      const data = await res.json();
+      const data = await postJSON<any>(`/admin/notificaciones/eliminar-multiples`, { ids });
       mostrarToast(`${data.eliminadas} notificación(es) eliminada(s)`, "success");
     } catch (error) {
       console.error("Error eliminando múltiples:", error);
-      await cargarNotificaciones(paginaActual);
-      mostrarToast("Error al eliminar notificaciones", "error");
+      // Encolar IDs para reintento y mantener la UI consistente
+      try {
+        storage.pushDeletedIds(ids);
+        mostrarToast('Notificaciones ocultadas localmente. Se reintentará la eliminación en segundo plano.', 'success');
+      } catch (err) {
+        await cargarNotificaciones(paginaActual);
+        mostrarToast('Error al eliminar notificaciones', 'error');
+      }
     }
   };
+
+  // Reintentar sincronizar la cola de eliminaciones pendientes
+  useEffect(() => {
+    let intervalId: number | null = null;
+
+    const attemptFlushDeletedQueue = async () => {
+      const queued = storage.getDeletedQueue();
+      if (!queued || queued.length === 0) return;
+
+      const token = localStorage.getItem('token');
+      if (!token) return;
+
+      try {
+        try {
+          const data = await postJSON<any>(`/admin/notificaciones/eliminar-multiples`, { ids: queued });
+          // Limpiar cola
+          storage.setDeletedQueue([]);
+          mostrarToast(`Sincronizadas ${queued.length} eliminación(es) pendientes`, 'success');
+        } catch (err: any) {
+          // No hacer nada — se reintentará después
+          console.warn('[Notificaciones] Falló sincronización cola:', err?.message || err);
+        }
+      } catch (err) {
+        console.warn('[Notificaciones] Error al sincronizar cola de eliminaciones:', err);
+      }
+    };
+
+    // Intentar al montar
+    attemptFlushDeletedQueue();
+
+    // Reintentar periódicamente (cada 60s)
+    intervalId = window.setInterval(attemptFlushDeletedQueue, 60000);
+
+    return () => {
+      if (intervalId) window.clearInterval(intervalId);
+    };
+  }, [paginaActual]);
 
   const eliminarTodasLeidas = async () => {
     try {
@@ -603,22 +594,7 @@ const Notificaciones: React.FC = () => {
       // Optimistic update
       setNotis((arr) => arr.filter(n => !n.leida));
 
-      const res = await fetch(
-        `${API_BASE}/admin/notificaciones/todas?leidas_solamente=true`,
-        {
-          method: "DELETE",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "ngrok-skip-browser-warning": "true",
-          },
-        }
-      );
-
-      if (!res.ok) {
-        throw new Error('Error al eliminar todas las leídas');
-      }
-
-      const data = await res.json();
+      const data = await deleteJSON<any>(`/admin/notificaciones/todas?leidas_solamente=true`);
       mostrarToast(`${data.eliminadas} notificación(es) eliminada(s)`, "success");
     } catch (error) {
       console.error("Error eliminando todas las leídas:", error);

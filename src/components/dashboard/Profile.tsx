@@ -2,32 +2,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { FaUpload, FaTrash, FaEdit, FaSave, FaTimes, FaImage, FaEye, FaEyeSlash, FaSpinner } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
-
-/* ===== BASE URL + helpers de fetch ===== */
-const RAW_BASE = (import.meta as any).env?.VITE_API_URL;
-
-if (!RAW_BASE) {
-  console.error('❌ VITE_API_URL no configurada');
-  throw new Error('Missing VITE_API_URL environment variable');
-}
-
-const API_BASE_URL = RAW_BASE.replace(/\/+$/, "");
-const api = (path = "") => `${API_BASE_URL}${path.startsWith("/") ? path : "/" + path}`;
-
-const GET_PERFIL_URL = api("/admin/perfil");
-const PUT_PERFIL_URL = api("/admin/perfil");
-const POST_CAMBIAR_PASS_URL = api("/admin/cambiar-password");
-
-const getToken = () => localStorage.getItem("token") || "";
-
-const authHeaders = (extra: Record<string, string> = {}) => {
-  const t = getToken();
-  return {
-    ...(t ? { Authorization: `Bearer ${t}` } : {}),
-    "ngrok-skip-browser-warning": "true",
-    ...extra,
-  };
-};
+import { getJSON, putJSON, postJSON } from "@/utils/api";
 
 /* ===== helpers para id y avatar por institución ===== */
 type TokenPayload = {
@@ -172,23 +147,7 @@ const Perfil: React.FC = () => {
   useEffect(() => {
     (async () => {
       try {
-        const r = await fetch(GET_PERFIL_URL, {
-          headers: authHeaders(),
-          cache: "no-store",
-        });
-
-        if (r.status === 401) {
-          localStorage.removeItem("token");
-          show("err", "Sesión expirada. Inicia sesión nuevamente.");
-          return;
-        }
-
-        if (!r.ok) {
-          show("err", "No se pudo cargar el perfil.");
-          return;
-        }
-
-        const data: ApiPerfilResponse = await r.json();
+        const data: ApiPerfilResponse = await getJSON('/admin/perfil');
         const perfil: PerfilInstitucion = data?.institucion ?? (data as PerfilInstitucion);
 
         // fijar id y sincronizar avatar de esa institución
@@ -210,7 +169,12 @@ const Perfil: React.FC = () => {
         aplicarInstitution(perfil || null);
       } catch (err: any) {
         console.error('[Profile] Error cargando perfil:', err);
-        show("err", err?.message || "Error al cargar el perfil. Intente nuevamente.");
+        if (err && err.status === 401) {
+          localStorage.removeItem('token');
+          show('err', 'Sesión expirada. Inicia sesión nuevamente.');
+        } else {
+          show("err", err?.message || "Error al cargar el perfil. Intente nuevamente.");
+        }
       } finally {
         setLoading(false);
       }
@@ -236,15 +200,11 @@ const Perfil: React.FC = () => {
     (async () => {
       try {
         setLoading(true);
-        const r = await fetch(GET_PERFIL_URL, {
-          headers: authHeaders(),
-          cache: "no-store",
-        });
-        if (r.ok) {
-          const data: ApiPerfilResponse = await r.json();
-          const perfil: PerfilInstitucion = data?.institucion ?? (data as PerfilInstitucion);
-          aplicarInstitution(perfil || null);
-        }
+        const data: ApiPerfilResponse = await getJSON('/admin/perfil');
+        const perfil: PerfilInstitucion = data?.institucion ?? (data as PerfilInstitucion);
+        aplicarInstitution(perfil || null);
+      } catch (err: any) {
+        console.error('[Profile] Error recargando perfil en cancelar:', err);
       } finally {
         setLoading(false);
       }
@@ -255,24 +215,7 @@ const Perfil: React.FC = () => {
   const guardar = async () => {
     try {
       setSaving(true);
-      const r = await fetch(PUT_PERFIL_URL, {
-        method: "PUT",
-        headers: authHeaders({ "Content-Type": "application/json" }),
-        body: JSON.stringify(snapshot),
-      });
-
-      if (r.status === 401) {
-        show("err", "Sesión expirada. Inicia sesión nuevamente.");
-        return;
-      }
-
-      if (!r.ok) {
-        const txt = await r.text().catch(() => "");
-        show("err", txt || "No se pudo guardar el perfil.");
-        return;
-      }
-
-      const respJson = await r.json().catch(() => null);
+      const respJson = await putJSON('/admin/perfil', snapshot).catch((e:any) => { throw e; });
       const perfil: PerfilInstitucion = respJson?.institucion ?? respJson ?? snapshot;
 
       aplicarInstitution(perfil as PerfilInstitucion);
@@ -320,16 +263,7 @@ const Perfil: React.FC = () => {
     }
     try {
       setPassLoading(true);
-      const r = await fetch(POST_CAMBIAR_PASS_URL, {
-        method: "POST",
-        headers: authHeaders({ "Content-Type": "application/json" }),
-        body: JSON.stringify({ actual: passOld, nueva: passNew }),
-      });
-      if (!r.ok) {
-        const txt = await r.text().catch(() => "");
-        show("err", txt || "No se pudo cambiar la contraseña.");
-        return;
-      }
+      await postJSON('/admin/cambiar-password', { actual: passOld, nueva: passNew });
       show("ok", "Contraseña actualizada.");
       setOpenPass(false);
       setPassOld("");

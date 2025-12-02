@@ -6,66 +6,7 @@ import {
   FaCheckCircle, FaTimesCircle, FaSpinner, FaExclamationCircle
 } from "react-icons/fa";
 
-/* API */
-const BASE_URL =
-  (import.meta as any).env?.VITE_API_URL?.replace(/\/+$/, "");
-
-if (!BASE_URL) {
-  console.error('❌ VITE_API_URL no configurada');
-  throw new Error('Missing VITE_API_URL environment variable');
-}
-const api = (p = "") => {
-  const path = p.startsWith("/") ? p : `/${p}`;
-  return `${BASE_URL}${path}`;
-};
-const token = () => {
-  try {
-    return (
-      localStorage.getItem("token") ||
-      JSON.parse(localStorage.getItem("auth") || "{}")?.token ||
-      ""
-    );
-  } catch {
-    return "";
-  }
-};
-const hdrs = (includeContentType = false) => {
-  const headers: Record<string, string> = {
-    "Authorization": `Bearer ${token()}`,
-    "ngrok-skip-browser-warning": "true"
-  };
-  
-  if (includeContentType) {
-    headers["Content-Type"] = "application/json";
-  }
-  
-  return headers;
-};
-
-async function jfetch(url: string, init: RequestInit = {}) {
-  const method = init.method || 'GET';
-  const includeContentType = method !== 'GET' && method !== 'HEAD';
-  
-  const defaultInit: RequestInit = {
-    method,
-    headers: {
-      ...hdrs(includeContentType),
-      ...(init.headers || {})
-    },
-    credentials: 'omit',
-    mode: 'cors'
-  };
-  
-  if (init.body) {
-    defaultInit.body = init.body;
-  }
-  
-  const r = await fetch(url, defaultInit);
-  const t = await r.text();
-  const d = t ? JSON.parse(t) : {};
-  if (!r.ok) throw new Error(d.error || d.detalle || `HTTP ${r.status}`);
-  return d;
-}
+import api, { request, buildUrl } from "../../services/api";
 
 /* utils */
 const norm = (s: string) =>
@@ -209,10 +150,9 @@ const Estudiantes: React.FC = () => {
 
   useEffect(() => {
     (async () => {
-      if (!token()) return;
+      if (!localStorage.getItem('token')) return;
       try {
-        await jfetch(api("/admin/perfil"), { headers: hdrs() });
-        // eliminado: valor no utilizado
+        await request('/admin/perfil');
       } catch {
         // noop
       }
@@ -229,10 +169,8 @@ const Estudiantes: React.FC = () => {
       if (jornada) qs.set("jornada", jornada);
       if (q) qs.set("q", q);
       qs.set("_ts", String(Date.now()));
-      console.log("Cargando estudiantes desde:", api(`/admin/estudiantes?${qs.toString()}`));
-      const d = await jfetch(api(`/admin/estudiantes?${qs.toString()}`), {
-        headers: { "Cache-Control": "no-cache" },
-      });
+      console.log("Cargando estudiantes desde:", buildUrl(`/admin/estudiantes?${qs.toString()}`));
+      const d = await request(`/admin/estudiantes?${qs.toString()}`, { method: 'GET', headers: { "Cache-Control": "no-cache" } });
       console.log("Respuesta del servidor:", d);
       setRows((Array.isArray(d) ? d : []).map(normRow));
       setPage(1);
@@ -247,12 +185,12 @@ const Estudiantes: React.FC = () => {
   };
   
   useEffect(() => { 
-    if (token()) listar(); 
+    if (localStorage.getItem('token')) listar(); 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   
   useEffect(() => {
-    if (token()) listar();
+    if (localStorage.getItem('token')) listar();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [grado, curso, jornada]);
 
@@ -260,9 +198,8 @@ const Estudiantes: React.FC = () => {
     ev.preventDefault();
     try {
       setSubmitting(true);
-      await jfetch(api("/admin/estudiantes"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...hdrs() },
+      await request('/admin/estudiantes', {
+        method: 'POST',
         body: JSON.stringify({
           ...form,
           correo: form.correo?.trim() || null,
@@ -270,7 +207,7 @@ const Estudiantes: React.FC = () => {
           grado: form.grado || null,
           curso: form.curso || null,
           jornada: form.jornada || null,
-        }),
+        })
       });
       say("Estudiante registrado exitosamente", "ok");
       setCrear(false);
@@ -288,9 +225,8 @@ const Estudiantes: React.FC = () => {
     try {
       if (!edit?.id_usuario) return setEditMsg("Falta id");
       setSubmitting(true);
-      await jfetch(api(`/admin/estudiantes/${edit.id_usuario}`), {
-        method: "PUT",
-        headers: { "Content-Type": "application/json", ...hdrs() },
+      await request(`/admin/estudiantes/${edit.id_usuario}`, {
+        method: 'PUT',
         body: JSON.stringify({
           nombre: (edit.nombre || "").trim(),
           apellido: (edit.apellido || "").trim(),
@@ -301,7 +237,7 @@ const Estudiantes: React.FC = () => {
           jornada: edit.jornada,
           tipo_documento: edit.tipo_documento,
           numero_documento: edit.numero_documento,
-        }),
+        })
       });
       say("Estudiante actualizado exitosamente", "ok");
       setEditOpen(false);
@@ -318,11 +254,7 @@ const Estudiantes: React.FC = () => {
     const id = e.id_usuario;
     setRows((rs) => rs.map((r) => (r.id_usuario === id ? { ...r, is_active: true } : r)));
     try {
-      await jfetch(api(`/admin/estudiantes/${id}`), {
-        method: "PUT",
-        headers: { "Content-Type": "application/json", ...hdrs() },
-        body: JSON.stringify({ is_active: true })
-      });
+      await request(`/admin/estudiantes/${id}`, { method: 'PUT', body: JSON.stringify({ is_active: true }) });
       say("Estudiante reactivado.", "ok");
       await listar();
     } catch (err: any) {
@@ -336,11 +268,7 @@ const Estudiantes: React.FC = () => {
     const id = confirm.e.id_usuario;
     setRows((rs) => rs.map((r) => (r.id_usuario === id ? { ...r, is_active: false } : r)));
     try {
-      await jfetch(api(`/admin/estudiantes/${id}`), {
-        method: "PUT",
-        headers: { "Content-Type": "application/json", ...hdrs() },
-        body: JSON.stringify({ is_active: false }),
-      });
+      await request(`/admin/estudiantes/${id}`, { method: 'PUT', body: JSON.stringify({ is_active: false }) });
       say("Estudiante inactivado.", "ok");
       setConfirm(null);
       await listar();
@@ -355,18 +283,17 @@ const Estudiantes: React.FC = () => {
     if (!confirm?.e) return;
     const id = confirm.e.id_usuario;
     try {
-      const r = await fetch(api(`/admin/estudiantes/${id}`), {
-        method: "DELETE", headers: hdrs()
-      });
-      if (r.status === 409) {
-        const j = await r.json().catch(() => ({}));
-        say(j?.error || "Tiene historial; solo puede inactivarse.", "info");
-      } else if (!r.ok) {
-        const j = await r.json().catch(() => ({}));
-        throw new Error(j.error || j.detalle || "No se pudo eliminar");
-      } else {
+      try {
+        await request(`/admin/estudiantes/${id}`, { method: 'DELETE' });
         say("Estudiante eliminado.", "ok");
         await listar();
+      } catch (err: any) {
+        if ((err as any).status === 409) {
+          const body = (err as any).body || {};
+          say(body?.error || "Tiene historial; solo puede inactivarse.", "info");
+        } else {
+          throw err;
+        }
       }
     } catch (e: any) {
       say(e.message || "Error al eliminar", "err");
@@ -376,11 +303,13 @@ const Estudiantes: React.FC = () => {
   };
 
   const importar = async (file: File) => {
-    const A = api("/admin/estudiantes/importar"), B = api("/admin/estudiantes/import");
+    const pathA = "/admin/estudiantes/importar", pathB = "/admin/estudiantes/import";
+    const A = buildUrl(pathA), B = buildUrl(pathB);
     const up = async (u: string) => {
       const fd = new FormData();
       ["estudiantes", "file", "archivo"].forEach((k) => fd.append(k, file));
-      return fetch(u, { method: "POST", headers: hdrs(), body: fd });
+      // Use centralized upload helper to keep headers and auth consistent
+      return api.uploadTo(u, fd);
     };
     const showAlerts = (obj: any) => {
       const insertados = Number(obj?.insertados ?? obj?.creados ?? 0);
@@ -447,16 +376,20 @@ const Estudiantes: React.FC = () => {
             correo: v("correo") || v("email") || "",
           };
         });
-      const send = (u: string) =>
-        fetch(u, { method: "POST", headers: { "Content-Type": "application/json", ...hdrs() }, body: JSON.stringify({ filas }) });
-      let rj = await send(A);
-      let d2: any = await rj.json().catch(() => ({}));
-      if (rj.status === 404) {
-        const r2 = await send(B);
-        d2 = await r2.json().catch(() => ({}));
-        if (!r2.ok) return say(d2.error || d2.detalle || "Error al importar", "err");
-      } else if (!rj.ok) {
-        return say(d2.error || d2.detalle || "Error al importar", "err");
+      const send = (usePath: string) =>
+        request(usePath, { method: 'POST', body: JSON.stringify({ filas }) });
+      let d2: any = {};
+      try {
+        const rj = await send(pathA);
+        d2 = rj as any;
+      } catch (errA: any) {
+        // Try alternative path if first fails with a 404-like error
+        try {
+          const r2 = await send(pathB);
+          d2 = r2 as any;
+        } catch (errB: any) {
+          return say(errB?.message || 'Error al importar', 'err');
+        }
       }
       showAlerts(d2);
       setImpOpen(false);
