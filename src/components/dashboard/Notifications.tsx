@@ -134,30 +134,60 @@ const Notificaciones: React.FC = () => {
   const [toast, setToast] = useState<{mensaje: string, tipo: 'success' | 'error'} | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  // Sonido de notificación (Web Audio API - más confiable)
+  // Sonido de notificación moderno (Web Audio API - estilo Slack/Discord)
   useEffect(() => {
-    // Crear un contexto de audio
-    const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
-    if (!AudioContext) return;
+    // Crear un contexto de audio solo después de interacción del usuario
+    let audioContext: AudioContext | null = null;
 
-    const audioContext = new AudioContext();
-
-    // Función para reproducir un beep
+    // Función para reproducir sonido moderno de notificación
     const crearSonido = () => {
-      const oscillator = audioContext.createOscillator();
-      const gainNode = audioContext.createGain();
+      // Crear AudioContext on-demand (después de interacción)
+      if (!audioContext) {
+        const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+        if (!AudioContextClass) return;
+        audioContext = new AudioContextClass();
+      }
 
-      oscillator.connect(gainNode);
-      gainNode.connect(audioContext.destination);
+      // Resume el contexto si está suspendido
+      if (audioContext.state === 'suspended') {
+        audioContext.resume().catch(console.warn);
+      }
 
-      oscillator.frequency.value = 800; // Frecuencia agradable
-      oscillator.type = 'sine';
+      const now = audioContext.currentTime;
 
-      gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+      // Primera nota (más alta y suave)
+      const osc1 = audioContext.createOscillator();
+      const gain1 = audioContext.createGain();
+      
+      osc1.connect(gain1);
+      gain1.connect(audioContext.destination);
+      
+      osc1.frequency.value = 587.33; // D5 - Nota agradable
+      osc1.type = 'sine'; // Onda suave
+      
+      gain1.gain.setValueAtTime(0, now);
+      gain1.gain.linearRampToValueAtTime(0.15, now + 0.02); // Attack suave
+      gain1.gain.exponentialRampToValueAtTime(0.01, now + 0.3); // Decay rápido
+      
+      osc1.start(now);
+      osc1.stop(now + 0.3);
 
-      oscillator.start(audioContext.currentTime);
-      oscillator.stop(audioContext.currentTime + 0.5);
+      // Segunda nota (armónica - efecto espacioso)
+      const osc2 = audioContext.createOscillator();
+      const gain2 = audioContext.createGain();
+      
+      osc2.connect(gain2);
+      gain2.connect(audioContext.destination);
+      
+      osc2.frequency.value = 880; // A5 - Quinta perfecta
+      osc2.type = 'sine';
+      
+      gain2.gain.setValueAtTime(0, now + 0.05);
+      gain2.gain.linearRampToValueAtTime(0.1, now + 0.08);
+      gain2.gain.exponentialRampToValueAtTime(0.01, now + 0.4);
+      
+      osc2.start(now + 0.05);
+      osc2.stop(now + 0.4);
     };
 
     (audioRef as any).current = { play: crearSonido };
@@ -207,6 +237,7 @@ const Notificaciones: React.FC = () => {
         const data = await res.json();
         const notifs = data.notificaciones || [];
         
+        // Backend ahora filtra automáticamente las eliminadas (campo 'eliminada' = false)
         const mapeadas: Noti[] = notifs.map((n: any) => {
           const p = n.payload || {};
           const area = p.area || n.area || undefined;
@@ -228,9 +259,21 @@ const Notificaciones: React.FC = () => {
         });
         
         if (append) {
-          setNotis((prev) => [...prev, ...mapeadas]);
+          // Al agregar, deduplicar con las existentes
+          setNotis((prev) => {
+            const idsExistentes = new Set(prev.map(n => n.id));
+            const nuevas = mapeadas.filter(n => !idsExistentes.has(n.id));
+            return [...prev, ...nuevas];
+          });
         } else {
-          setNotis(mapeadas);
+          // Deduplicar por ID antes de establecer
+          const idsVistos = new Set();
+          const sinDuplicados = mapeadas.filter(n => {
+            if (idsVistos.has(n.id)) return false;
+            idsVistos.add(n.id);
+            return true;
+          });
+          setNotis(sinDuplicados);
         }
         
         setPaginacion(data.paginacion || null);
@@ -248,7 +291,16 @@ const Notificaciones: React.FC = () => {
   useEffect(() => {
     setPaginaActual(1);
     cargarNotificaciones(1, false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, filtroTipo]);
+
+  // Actualizar contador global cuando cambien las notificaciones
+  useEffect(() => {
+    const noLeidas = notis.filter(n => !n.leida).length;
+    window.dispatchEvent(new CustomEvent('notificaciones-actualizadas', { 
+      detail: { noLeidas } 
+    }));
+  }, [notis]);
 
   // Polling para tiempo real (fallback mientras el backend implementa SSE)
   useEffect(() => {
@@ -277,48 +329,54 @@ const Notificaciones: React.FC = () => {
           const data = await res.json();
           const notifs = data.notificaciones || [];
           
-          // Verificar si hay notificaciones nuevas
-          const nuevas = notifs.filter((n: any) => {
-            const existe = notis.some(existing => existing.id === (n.id_notificacion || n.id));
-            return !existe;
-          });
-
-          if (nuevas.length > 0) {
-            console.log(`[Polling] ${nuevas.length} notificación(es) nueva(s) detectada(s)`);
-            
-            // Agregar las nuevas al inicio
-            nuevas.forEach((n: any) => {
-              const p = n.payload || {};
-              const nuevaNotificacion: Noti = {
-                id: n.id_notificacion || n.id,
-                tipo: (n.tipo || "inactividad") as TipoNoti,
-                titulo: n.titulo || p.titulo || "",
-                detalle: n.detalle || p.detalle || "",
-                fechaISO: n.created_at || n.createdAt || new Date().toISOString(),
-                leida: false,
-                area: p.area,
-                puntaje: typeof p.porcentaje === 'number' ? Math.round(p.porcentaje) : undefined,
-                estudiante: p.estudiante || p.nombre,
-                curso: p.curso,
-              };
-
-              setNotis((prev) => [nuevaNotificacion, ...prev]);
-              reproducirSonido();
-              mostrarToast(`Nueva notificación: ${nuevaNotificacion.titulo}`, 'success');
-
-              if (Notification.permission === "granted") {
-                new Notification(nuevaNotificacion.titulo, {
-                  body: nuevaNotificacion.detalle,
-                  icon: "/vite.svg",
-                });
-              }
+          // Backend ya filtra las eliminadas automáticamente
+          // Verificar si hay notificaciones nuevas usando callback para evitar stale closure
+          setNotis((prevNotis) => {
+            const idsExistentes = new Set(prevNotis.map(n => n.id));
+            const nuevas = notifs.filter((n: any) => {
+              const id = n.id_notificacion || n.id;
+              return !idsExistentes.has(id);
             });
 
-            // Actualizar contador global
-            window.dispatchEvent(new CustomEvent('notificaciones-actualizadas', { 
-              detail: { noLeidas: notis.filter(n => !n.leida).length + nuevas.length } 
-            }));
-          }
+            if (nuevas.length > 0) {
+              console.log(`[Polling] ${nuevas.length} notificación(es) nueva(s) detectada(s)`);
+              
+              // Mapear las nuevas notificaciones
+              const nuevasNoti: Noti[] = nuevas.map((n: any) => {
+                const p = n.payload || {};
+                return {
+                  id: n.id_notificacion || n.id,
+                  tipo: (n.tipo || "inactividad") as TipoNoti,
+                  titulo: n.titulo || p.titulo || "",
+                  detalle: n.detalle || p.detalle || "",
+                  fechaISO: n.created_at || n.createdAt || new Date().toISOString(),
+                  leida: false,
+                  area: p.area,
+                  puntaje: typeof p.porcentaje === 'number' ? Math.round(p.porcentaje) : undefined,
+                  estudiante: p.estudiante || p.nombre,
+                  curso: p.curso,
+                };
+              });
+
+              // Reproducir sonido y notificación solo para la primera
+              if (nuevasNoti.length > 0) {
+                reproducirSonido();
+                mostrarToast(`${nuevasNoti.length} nueva(s) notificación(es)`, 'success');
+
+                if (Notification.permission === "granted") {
+                  new Notification(nuevasNoti[0].titulo, {
+                    body: nuevasNoti[0].detalle,
+                    icon: "/vite.svg",
+                  });
+                }
+              }
+
+              // Agregar las nuevas al inicio sin duplicados
+              return [...nuevasNoti, ...prevNotis];
+            }
+
+            return prevNotis;
+          });
         }
       } catch (error) {
         console.warn('[Polling] Error verificando notificaciones:', error);
@@ -343,7 +401,7 @@ const Notificaciones: React.FC = () => {
       clearInterval(intervalId);
       setSseConectado(false);
     };
-  }, [sonidoActivo, notis]);
+  }, [sonidoActivo]);
 
   // Notificaciones filtradas por búsqueda
   const notisFiltradas = useMemo(() => {
@@ -409,10 +467,6 @@ const Notificaciones: React.FC = () => {
       // Optimistic update
       setNotis((arr) => {
         const updated = arr.map((n) => (n.id === id ? { ...n, leida: true } : n));
-        const noLeidas = updated.filter(n => !n.leida).length;
-        window.dispatchEvent(new CustomEvent('notificaciones-actualizadas', { 
-          detail: { noLeidas } 
-        }));
         return updated;
       });
 
@@ -440,13 +494,7 @@ const Notificaciones: React.FC = () => {
       if (idsNoLeidas.length === 0) return;
 
       // Optimistic update
-      setNotis((arr) => {
-        const updated = arr.map((n) => ({ ...n, leida: true }));
-        window.dispatchEvent(new CustomEvent('notificaciones-actualizadas', { 
-          detail: { noLeidas: 0 } 
-        }));
-        return updated;
-      });
+      setNotis((arr) => arr.map((n) => ({ ...n, leida: true })));
 
       await fetch(`${API_BASE}/admin/notificaciones/marcar`, {
         method: "POST",
@@ -473,19 +521,109 @@ const Notificaciones: React.FC = () => {
       // Optimistic update
       setNotis((arr) => arr.filter(n => n.id !== id));
 
-      // TODO: Implementar endpoint DELETE en el backend
-      // await fetch(`${API_BASE}/admin/notificaciones/${id}`, {
-      //   method: "DELETE",
-      //   headers: {
-      //     Authorization: `Bearer ${token}`,
-      //     "ngrok-skip-browser-warning": "true",
-      //   },
-      // });
+      // Llamada real al backend (soft delete)
+      const res = await fetch(`${API_BASE}/admin/notificaciones/${id}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "ngrok-skip-browser-warning": "true",
+        },
+      });
+
+      if (!res.ok) {
+        throw new Error('Error al eliminar notificación');
+      }
 
       mostrarToast("Notificación eliminada", "success");
     } catch (error) {
       console.error("Error eliminando notificación:", error);
+      // Revertir optimistic update en caso de error
+      await cargarNotificaciones(paginaActual);
       mostrarToast("Error al eliminar", "error");
+    }
+  };
+
+  const eliminarMultiples = async (ids: number[]) => {
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) return;
+
+      if (ids.length === 0) {
+        mostrarToast("No hay notificaciones para eliminar", "error");
+        return;
+      }
+
+      if (ids.length > 100) {
+        mostrarToast("Máximo 100 notificaciones por vez", "error");
+        return;
+      }
+
+      // Optimistic update
+      setNotis((arr) => arr.filter(n => !ids.includes(n.id)));
+
+      const res = await fetch(`${API_BASE}/admin/notificaciones/eliminar-multiples`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+          "ngrok-skip-browser-warning": "true",
+        },
+        body: JSON.stringify({ ids }),
+      });
+
+      if (!res.ok) {
+        throw new Error('Error al eliminar múltiples notificaciones');
+      }
+
+      const data = await res.json();
+      mostrarToast(`${data.eliminadas} notificación(es) eliminada(s)`, "success");
+    } catch (error) {
+      console.error("Error eliminando múltiples:", error);
+      await cargarNotificaciones(paginaActual);
+      mostrarToast("Error al eliminar notificaciones", "error");
+    }
+  };
+
+  const eliminarTodasLeidas = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) return;
+
+      const leidasCount = notis.filter(n => n.leida).length;
+      if (leidasCount === 0) {
+        mostrarToast("No hay notificaciones leídas para eliminar", "error");
+        return;
+      }
+
+      // Confirmación
+      if (!confirm(`¿Eliminar ${leidasCount} notificación(es) leída(s)?`)) {
+        return;
+      }
+
+      // Optimistic update
+      setNotis((arr) => arr.filter(n => !n.leida));
+
+      const res = await fetch(
+        `${API_BASE}/admin/notificaciones/todas?leidas_solamente=true`,
+        {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "ngrok-skip-browser-warning": "true",
+          },
+        }
+      );
+
+      if (!res.ok) {
+        throw new Error('Error al eliminar todas las leídas');
+      }
+
+      const data = await res.json();
+      mostrarToast(`${data.eliminadas} notificación(es) eliminada(s)`, "success");
+    } catch (error) {
+      console.error("Error eliminando todas las leídas:", error);
+      await cargarNotificaciones(paginaActual);
+      mostrarToast("Error al eliminar notificaciones", "error");
     }
   };
 
@@ -649,6 +787,14 @@ const Notificaciones: React.FC = () => {
             >
               <FaCheckCircle />
               Marcar todas como leídas
+            </button>
+            <button 
+              onClick={eliminarTodasLeidas}
+              disabled={notis.filter(n => n.leida).length === 0}
+              className="bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            >
+              <FaTrash />
+              Eliminar todas las leídas
             </button>
           </div>
         </div>
