@@ -16,7 +16,7 @@ const api = (path = "") => `${API_BASE_URL}${path.startsWith("/") ? path : "/" +
 
 const GET_PERFIL_URL = api("/admin/perfil");
 const PUT_PERFIL_URL = api("/admin/perfil");
-const POST_CAMBIAR_PASS_URL = api("/admin/cambiar-password");
+const POST_CAMBIAR_PASS_URL = api("admin/perfil/cambiar-password");
 
 const getToken = () => localStorage.getItem("token") || "";
 
@@ -81,7 +81,6 @@ const setAvatarForInst = (instId: string | null, url: string | null) => {
     window.dispatchEvent(ev);
   }
 };
-/* ===================================================== */
 
 type PerfilInstitucion = {
   id_institucion?: string | number;
@@ -138,6 +137,9 @@ const Perfil: React.FC = () => {
   const [departamento, setDepartamento] = useState("");
 
   const [editando, setEditando] = useState(false);
+
+  // Estados para validación de edición
+  const [camposEditTocados, setCamposEditTocados] = useState<Record<string, boolean>>({});
 
   // Modal cambiar contraseña
   const [openPass, setOpenPass] = useState(false);
@@ -231,8 +233,58 @@ const Perfil: React.FC = () => {
     [nombreInst, codigoDane, direccion, telefono, jornada, correoInst, ciudad, departamento]
   );
 
+  // Función para validar campos en edición
+  const validarCampoEdicion = (campo: string, valor: string): boolean => {
+    return valor.trim() !== "";
+  };
+
+  // Verificar si un campo en edición tiene error
+  const campoEditConError = (nombreCampo: string) => {
+    let valor = "";
+    switch (nombreCampo) {
+      case 'nombreInst': valor = nombreInst; break;
+      case 'codigoDane': valor = codigoDane; break;
+      case 'direccion': valor = direccion; break;
+      case 'telefono': valor = telefono; break;
+      case 'jornada': valor = jornada; break;
+      case 'correoInst': valor = correoInst; break;
+      case 'ciudad': valor = ciudad; break;
+      case 'departamento': valor = departamento; break;
+    }
+    if (!camposEditTocados[nombreCampo]) return false;
+    return !validarCampoEdicion(nombreCampo, valor);
+  };
+
+  // Función para marcar campo en edición como tocado
+  const tocarCampoEdit = (nombreCampo: string) => {
+    setCamposEditTocados(prev => ({
+      ...prev,
+      [nombreCampo]: true
+    }));
+  };
+
+  // Validar si todo el formulario de edición es válido
+  const formularioEdicionValido = useMemo(() => {
+    const camposRequeridos = ['nombreInst', 'codigoDane', 'direccion', 'telefono', 'jornada', 'correoInst', 'ciudad', 'departamento'];
+    return camposRequeridos.every(campo => {
+      let valor = "";
+      switch (campo) {
+        case 'nombreInst': valor = nombreInst; break;
+        case 'codigoDane': valor = codigoDane; break;
+        case 'direccion': valor = direccion; break;
+        case 'telefono': valor = telefono; break;
+        case 'jornada': valor = jornada; break;
+        case 'correoInst': valor = correoInst; break;
+        case 'ciudad': valor = ciudad; break;
+        case 'departamento': valor = departamento; break;
+      }
+      return validarCampoEdicion(campo, valor);
+    });
+  }, [nombreInst, codigoDane, direccion, telefono, jornada, correoInst, ciudad, departamento]);
+
   const cancelar = () => {
     setEditando(false);
+    setCamposEditTocados({}); // Limpiar validación
     (async () => {
       try {
         setLoading(true);
@@ -251,8 +303,19 @@ const Perfil: React.FC = () => {
     })();
   };
 
-  // PUT /admin/perfil con los campos del formulario
   const guardar = async () => {
+    const camposRequeridos = ['nombreInst', 'codigoDane', 'direccion', 'telefono', 'jornada', 'correoInst', 'ciudad', 'departamento'];
+    const nuevosTocados: Record<string, boolean> = {};
+    camposRequeridos.forEach(campo => {
+      nuevosTocados[campo] = true;
+    });
+    setCamposEditTocados(nuevosTocados);
+    
+    if (!formularioEdicionValido) {
+      show("err", "Por favor completa todos los campos obligatorios");
+      return;
+    }
+    
     try {
       setSaving(true);
       const r = await fetch(PUT_PERFIL_URL, {
@@ -278,6 +341,7 @@ const Perfil: React.FC = () => {
       aplicarInstitution(perfil as PerfilInstitucion);
       show("ok", "Cambios guardados.");
       setEditando(false);
+      setCamposEditTocados({}); // Limpiar validación
     } catch (err: any) {
       console.error('[Profile] Error guardando perfil:', err);
       show("err", err?.message || "Error al guardar. Intente nuevamente.");
@@ -286,7 +350,6 @@ const Perfil: React.FC = () => {
     }
   };
 
-  // ===== logo (local por ahora, pero atado a la institución) =====
   const onPickLogo = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     e.target.value = "";
@@ -358,7 +421,6 @@ const Perfil: React.FC = () => {
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* ----------- izquierda: Foto / Logo ----------- */}
         <div className="lg:col-span-1">
           <div className="rounded-xl border p-5">
             <h3 className="font-semibold text-gray-800 mb-4">Foto / Logo de la institución</h3>
@@ -389,7 +451,6 @@ const Perfil: React.FC = () => {
           </div>
         </div>
 
-        {/* ----------- derecha: Datos de la institución ----------- */}
         <div className="lg:col-span-2">
           <div className="rounded-xl border p-5">
             <div className="flex items-center justify-between mb-4">
@@ -408,7 +469,10 @@ const Perfil: React.FC = () => {
                     Cambiar contraseña
                   </button>
                   <button
-                    onClick={() => setEditando(true)}
+                    onClick={() => {
+                      setEditando(true);
+                      setCamposEditTocados({}); 
+                    }}
                     className="inline-flex items-center gap-2 border border-blue-600 text-blue-600 hover:bg-blue-50 px-3 py-2 rounded-lg text-sm"
                   >
                     <FaEdit />
@@ -419,7 +483,7 @@ const Perfil: React.FC = () => {
                 <div className="space-x-2">
                   <button
                     onClick={guardar}
-                    disabled={saving}
+                    disabled={saving || !formularioEdicionValido}
                     className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-lg text-sm disabled:opacity-60"
                   >
                     {saving ? <FaSpinner className="animate-spin" /> : <FaSave />}
@@ -437,14 +501,142 @@ const Perfil: React.FC = () => {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Input label="Nombre de la institución" value={nombreInst} onChange={setNombreInst} disabled={!editando || loading} />
-              <Input label="Código DANE" value={codigoDane} onChange={setCodigoDane} disabled={!editando || loading} />
-              <Input label="Dirección" value={direccion} onChange={setDireccion} disabled={!editando || loading} />
-              <Input label="Teléfono" value={telefono} onChange={setTelefono} disabled={!editando || loading} />
-              <Input label="Jornada" value={jornada} onChange={setJornada} disabled={!editando || loading} />
-              <Input label="Correo de contacto" value={correoInst} onChange={setCorreoInst} disabled={!editando || loading} />
-              <Input label="Ciudad" value={ciudad} onChange={setCiudad} disabled={!editando || loading} />
-              <Input label="Departamento" value={departamento} onChange={setDepartamento} disabled={!editando || loading} />
+              {/* Nombre de la institución */}
+              <label className="block">
+                <span className="text-sm text-gray-600">Nombre de la institución</span>
+                <input
+                  value={nombreInst}
+                  onChange={(e) => setNombreInst(e.target.value)}
+                  onBlur={() => tocarCampoEdit('nombreInst')}
+                  disabled={!editando || loading}
+                  className={`mt-1 w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-400 focus:border-blue-400 disabled:bg-gray-100 ${
+                    campoEditConError('nombreInst') ? 'border-red-500 bg-red-50' : 'border-gray-300'
+                  }`}
+                  placeholder="Nombre de la institución"
+                  autoComplete="off"
+                />
+                {campoEditConError('nombreInst') && <p className="text-red-500 text-xs mt-1">Este campo no puede estar vacío</p>}
+              </label>
+              
+              {/* Código DANE */}
+              <label className="block">
+                <span className="text-sm text-gray-600">Código DANE</span>
+                <input
+                  value={codigoDane}
+                  onChange={(e) => setCodigoDane(e.target.value)}
+                  onBlur={() => tocarCampoEdit('codigoDane')}
+                  disabled={!editando || loading}
+                  className={`mt-1 w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-400 focus:border-blue-400 disabled:bg-gray-100 ${
+                    campoEditConError('codigoDane') ? 'border-red-500 bg-red-50' : 'border-gray-300'
+                  }`}
+                  placeholder="Código DANE"
+                  autoComplete="off"
+                />
+                {campoEditConError('codigoDane') && <p className="text-red-500 text-xs mt-1">Este campo no puede estar vacío</p>}
+              </label>
+              
+              {/* Dirección */}
+              <label className="block">
+                <span className="text-sm text-gray-600">Dirección</span>
+                <input
+                  value={direccion}
+                  onChange={(e) => setDireccion(e.target.value)}
+                  onBlur={() => tocarCampoEdit('direccion')}
+                  disabled={!editando || loading}
+                  className={`mt-1 w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-400 focus:border-blue-400 disabled:bg-gray-100 ${
+                    campoEditConError('direccion') ? 'border-red-500 bg-red-50' : 'border-gray-300'
+                  }`}
+                  placeholder="Dirección"
+                  autoComplete="off"
+                />
+                {campoEditConError('direccion') && <p className="text-red-500 text-xs mt-1">Este campo no puede estar vacío</p>}
+              </label>
+              
+              {/* Teléfono */}
+              <label className="block">
+                <span className="text-sm text-gray-600">Teléfono</span>
+                <input
+                  value={telefono}
+                  onChange={(e) => setTelefono(e.target.value)}
+                  onBlur={() => tocarCampoEdit('telefono')}
+                  disabled={!editando || loading}
+                  className={`mt-1 w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-400 focus:border-blue-400 disabled:bg-gray-100 ${
+                    campoEditConError('telefono') ? 'border-red-500 bg-red-50' : 'border-gray-300'
+                  }`}
+                  placeholder="Teléfono"
+                  autoComplete="off"
+                />
+                {campoEditConError('telefono') && <p className="text-red-500 text-xs mt-1">Este campo no puede estar vacío</p>}
+              </label>
+              
+              {/* Jornada */}
+              <label className="block">
+                <span className="text-sm text-gray-600">Jornada</span>
+                <input
+                  value={jornada}
+                  onChange={(e) => setJornada(e.target.value)}
+                  onBlur={() => tocarCampoEdit('jornada')}
+                  disabled={!editando || loading}
+                  className={`mt-1 w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-400 focus:border-blue-400 disabled:bg-gray-100 ${
+                    campoEditConError('jornada') ? 'border-red-500 bg-red-50' : 'border-gray-300'
+                  }`}
+                  placeholder="Jornada"
+                  autoComplete="off"
+                />
+                {campoEditConError('jornada') && <p className="text-red-500 text-xs mt-1">Este campo no puede estar vacío</p>}
+              </label>
+              
+              {/* Correo de contacto */}
+              <label className="block">
+                <span className="text-sm text-gray-600">Correo de contacto</span>
+                <input
+                  type="email"
+                  value={correoInst}
+                  onChange={(e) => setCorreoInst(e.target.value)}
+                  onBlur={() => tocarCampoEdit('correoInst')}
+                  disabled={!editando || loading}
+                  className={`mt-1 w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-400 focus:border-blue-400 disabled:bg-gray-100 ${
+                    campoEditConError('correoInst') ? 'border-red-500 bg-red-50' : 'border-gray-300'
+                  }`}
+                  placeholder="Correo de contacto"
+                  autoComplete="off"
+                />
+                {campoEditConError('correoInst') && <p className="text-red-500 text-xs mt-1">Este campo no puede estar vacío</p>}
+              </label>
+              
+              {/* Ciudad */}
+              <label className="block">
+                <span className="text-sm text-gray-600">Ciudad</span>
+                <input
+                  value={ciudad}
+                  onChange={(e) => setCiudad(e.target.value)}
+                  onBlur={() => tocarCampoEdit('ciudad')}
+                  disabled={!editando || loading}
+                  className={`mt-1 w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-400 focus:border-blue-400 disabled:bg-gray-100 ${
+                    campoEditConError('ciudad') ? 'border-red-500 bg-red-50' : 'border-gray-300'
+                  }`}
+                  placeholder="Ciudad"
+                  autoComplete="off"
+                />
+                {campoEditConError('ciudad') && <p className="text-red-500 text-xs mt-1">Este campo no puede estar vacío</p>}
+              </label>
+              
+              {/* Departamento */}
+              <label className="block">
+                <span className="text-sm text-gray-600">Departamento</span>
+                <input
+                  value={departamento}
+                  onChange={(e) => setDepartamento(e.target.value)}
+                  onBlur={() => tocarCampoEdit('departamento')}
+                  disabled={!editando || loading}
+                  className={`mt-1 w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-400 focus:border-blue-400 disabled:bg-gray-100 ${
+                    campoEditConError('departamento') ? 'border-red-500 bg-red-50' : 'border-gray-300'
+                  }`}
+                  placeholder="Departamento"
+                  autoComplete="off"
+                />
+                {campoEditConError('departamento') && <p className="text-red-500 text-xs mt-1">Este campo no puede estar vacío</p>}
+              </label>
             </div>
           </div>
         </div>
@@ -484,26 +676,6 @@ const Perfil: React.FC = () => {
     </div>
   );
 };
-
-/* ===================== helpers UI ===================== */
-const Input: React.FC<{
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  disabled?: boolean;
-}> = ({ label, value, onChange, disabled }) => (
-  <label className="block">
-    <span className="text-sm text-gray-600">{label}</span>
-    <input
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      disabled={disabled}
-      className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-400 focus:border-blue-400 disabled:bg-gray-100"
-      placeholder={label}
-      autoComplete="off"
-    />
-  </label>
-);
 
 const FieldPassword: React.FC<{ label: string; value: string; onChange: (v: string) => void }> = ({ label, value, onChange }) => {
   const [show, setShow] = useState(false);
