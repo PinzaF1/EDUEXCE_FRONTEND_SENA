@@ -63,7 +63,16 @@ async function jfetch(url: string, init: RequestInit = {}) {
   const r = await fetch(url, defaultInit);
   const t = await r.text();
   const d = t ? JSON.parse(t) : {};
-  if (!r.ok) throw new Error(d.error || d.detalle || `HTTP ${r.status}`);
+  if (!r.ok) {
+    // si 401 -> lanzar error especial para permitir redirección en la app si lo deseas
+    if (r.status === 401) {
+      const err = new Error("Unauthorized");
+      // @ts-ignore
+      err.status = 401;
+      throw err;
+    }
+    throw new Error(d.error || d.detalle || `HTTP ${r.status}`);
+  }
   return d;
 }
 
@@ -130,6 +139,8 @@ const NiceSelect: React.FC<{
         type="button"
         onClick={() => setOpen((o) => !o)}
         className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white text-left focus:ring-2 focus:ring-blue-500"
+        aria-haspopup
+        aria-expanded={open}
       >
         <span>{label}</span>
         <span
@@ -212,9 +223,12 @@ const Estudiantes: React.FC = () => {
       if (!token()) return;
       try {
         await jfetch(api("/admin/perfil"), { headers: hdrs() });
-        // eliminado: valor no utilizado
-      } catch {
         // noop
+      } catch (err: any) {
+        if (err?.status === 401) {
+          // opcional: redirigir a /login si la app no lo hace automáticamente
+          // window.location.href = '/login';
+        }
       }
     })();
   }, []);
@@ -510,20 +524,30 @@ const Estudiantes: React.FC = () => {
             onChange={(e) => { setQ(e.target.value); setPage(1); }}
             placeholder="Buscar por nombre o apellido..."
             className="px-4 py-2 flex-1 outline-none text-sm"
+            data-cy="input-search"
           />
           <button
             onClick={() => { setPage(1); listar(); }}
             className="px-4 py-2 bg-blue-600 text-white hover:bg-blue-700 flex items-center gap-2"
+            data-cy="btn-search"
           >
             <FaSearch className="text-sm" />
             <span className="text-sm">Buscar</span>
           </button>
         </div>
-        <button className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2" onClick={() => setCrear(true)}>
+        <button
+          className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2"
+          onClick={() => setCrear(true)}
+          data-cy="btn-add-student"
+        >
           <FaPlus className="text-sm" />
           <span className="text-sm">Nuevo Estudiante</span>
         </button>
-        <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2" onClick={() => setImpOpen(true)}>
+        <button
+          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
+          onClick={() => setImpOpen(true)}
+          data-cy="btn-import-csv"
+        >
           <FaFileUpload className="text-sm" />
           <span className="text-sm">Importar CSV</span>
         </button>
@@ -615,7 +639,7 @@ const Estudiantes: React.FC = () => {
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Acciones</th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
+              <tbody className="bg-white divide-y divide-gray-200" data-cy="student-list">
                 {paginatedData.map((e) => (
                   <tr key={e.id_usuario} className="hover:bg-gray-50">
                     <td className="px-4 py-4">
@@ -646,17 +670,33 @@ const Estudiantes: React.FC = () => {
                     </td>
                     <td className="px-4 py-4">
                       <div className="flex gap-2">
-                        <button className="text-blue-600 hover:text-blue-900" onClick={() => abrirEditar(e)}>
+                        <button
+                          data-cy="btn-edit-row"
+                          className="text-blue-600 hover:text-blue-900"
+                          onClick={() => abrirEditar(e)}
+                          aria-label="editar estudiante"
+                          title="Editar"
+                        >
                           <FaEdit size={16} />
                         </button>
+
                         <button
+                          data-cy="btn-toggle-row"
                           className={`${e.is_active ? 'text-green-600 hover:text-green-900' : 'text-red-600 hover:text-red-900'}`}
                           onClick={() => (e.is_active ? setConfirm({ t: "inactivar", e }) : reactivar(e))}
                           title={e.is_active ? 'Inactivar' : 'Reactivar'}
+                          aria-pressed={!e.is_active}
                         >
                           <FaToggleOn size={20} />
                         </button>
-                        <button className="text-red-600 hover:text-red-900" onClick={() => pedirEliminar(e)}>
+
+                        <button
+                          data-cy="btn-delete-row"
+                          className="text-red-600 hover:text-red-900"
+                          onClick={() => pedirEliminar(e)}
+                          title="Eliminar"
+                          aria-label="eliminar estudiante"
+                        >
                           <FaTrash size={16} />
                         </button>
                       </div>
@@ -705,40 +745,122 @@ const Estudiantes: React.FC = () => {
 
       {/* Modales */}
       {crear && (
-        <div className="fixed inset-0 bg-black/40 grid place-items-center z-50">
+        <div className="fixed inset-0 bg-black/40 grid place-items-center z-50" data-cy="modal-add-student">
           <div className="bg-white rounded-lg shadow-lg w-full max-w-lg p-6">
             <div className="flex justify-between items-center border-b pb-3 mb-4">
               <h2 className="text-xl font-semibold">Registrar Nuevo Estudiante</h2>
-              <button className="text-gray-400 hover:text-gray-600" onClick={() => setCrear(false)}>✕</button>
+              <button data-cy="btn-close-create" className="text-gray-400 hover:text-gray-600" onClick={() => setCrear(false)}>✕</button>
             </div>
             <form onSubmit={onCrear} className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <input value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })} placeholder="Nombre" className="w-full border border-gray-300 rounded-lg p-3" required />
-                <input value={form.apellido} onChange={(e) => setForm({ ...form, apellido: e.target.value })} placeholder="Apellido" className="w-full border border-gray-300 rounded-lg p-3" required />
+                <input
+                  name="nombre"
+                  data-cy="input-nombre"
+                  value={form.nombre}
+                  onChange={(e) => setForm({ ...form, nombre: e.target.value })}
+                  placeholder="Nombre"
+                  className="w-full border border-gray-300 rounded-lg p-3"
+                  required
+                />
+                <input
+                  name="apellido"
+                  data-cy="input-apellido"
+                  value={form.apellido}
+                  onChange={(e) => setForm({ ...form, apellido: e.target.value })}
+                  placeholder="Apellido"
+                  className="w-full border border-gray-300 rounded-lg p-3"
+                  required
+                />
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <NiceSelect className="w-full" value={form.tipo_documento} onChange={(v) => setForm({ ...form, tipo_documento: v })}
-                  options={[{ value: "", label: "Tipo de Documento" }, { value: "TI", label: "Tarjeta de Identidad" }, { value: "CC", label: "Cédula de Ciudadanía" }, { value: "CE", label: "Cédula de Extranjería" }]} />
-                <input value={form.numero_documento} onChange={(e) => setForm({ ...form, numero_documento: e.target.value })} placeholder="Número de documento" className="w-full border border-gray-300 rounded-lg p-3" required />
+                {/* Tipo documento: native select para que cy.select funcione */}
+                <select
+                  name="tipo_documento"
+                  data-cy="select-tipo-documento"
+                  value={form.tipo_documento}
+                  onChange={(e) => setForm({ ...form, tipo_documento: e.target.value })}
+                  className="w-full border border-gray-300 rounded-lg p-3 bg-white text-sm"
+                  required
+                >
+                  <option value="">Tipo de Documento</option>
+                  <option value="TI">Tarjeta de Identidad</option>
+                  <option value="CC">Cédula de Ciudadanía</option>
+                  <option value="CE">Cédula de Extranjería</option>
+                </select>
+
+                <input
+                  name="identificacion"
+                  data-cy="input-document"
+                  value={form.numero_documento}
+                  onChange={(e) => setForm({ ...form, numero_documento: e.target.value })}
+                  placeholder="Número de documento"
+                  className="w-full border border-gray-300 rounded-lg p-3"
+                  required
+                />
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <NiceSelect className="w-full" value={form.grado} onChange={(v) => setForm({ ...form, grado: v })}
-                  options={[{ value: "", label: "Grado" }, { value: "10", label: "Décimo (10°)" }, { value: "11", label: "Undécimo (11°)" }]} />
-                <NiceSelect className="w-full" value={form.curso} onChange={(v) => setForm({ ...form, curso: v })}
-                  options={[{ value: "", label: "Curso" }, { value: "A", label: "A" }, { value: "B", label: "B" }, { value: "C", label: "C" }]} />
-                <NiceSelect className="w-full" value={form.jornada} onChange={(v) => setForm({ ...form, jornada: v })}
-                  options={[{ value: "", label: "Jornada" }, { value: "mañana", label: "Mañana" }, { value: "tarde", label: "Tarde" }]} />
+                <select
+                  name="grado"
+                  data-cy="select-grado"
+                  value={form.grado as string}
+                  onChange={(e) => setForm({ ...form, grado: e.target.value })}
+                  className="w-full border border-gray-300 rounded-lg p-3 bg-white text-sm"
+                >
+                  <option value="">Grado</option>
+                  <option value="10">Décimo (10°)</option>
+                  <option value="11">Undécimo (11°)</option>
+                </select>
+                <select
+                  name="curso"
+                  data-cy="select-curso"
+                  value={form.curso || ""}
+                  onChange={(e) => setForm({ ...form, curso: e.target.value })}
+                  className="w-full border border-gray-300 rounded-lg p-3 bg-white text-sm"
+                >
+                  <option value="">Curso</option>
+                  <option value="A">A</option>
+                  <option value="B">B</option>
+                  <option value="C">C</option>
+                </select>
+                <select
+                  name="jornada"
+                  data-cy="select-jornada"
+                  value={form.jornada || ""}
+                  onChange={(e) => setForm({ ...form, jornada: e.target.value })}
+                  className="w-full border border-gray-300 rounded-lg p-3 bg-white text-sm"
+                >
+                  <option value="">Jornada</option>
+                  <option value="mañana">Mañana</option>
+                  <option value="tarde">Tarde</option>
+                </select>
               </div>
-              <input value={form.direccion} onChange={(e) => setForm({ ...form, direccion: e.target.value })} placeholder="Dirección" className="w-full border border-gray-300 rounded-lg p-3" />
-              <input type="email" value={form.correo} onChange={(e) => setForm({ ...form, correo: e.target.value })} placeholder="Correo electrónico" className="w-full border border-gray-300 rounded-lg p-3" required />
+              <input
+                name="direccion"
+                data-cy="input-direccion"
+                value={form.direccion}
+                onChange={(e) => setForm({ ...form, direccion: e.target.value })}
+                placeholder="Dirección"
+                className="w-full border border-gray-300 rounded-lg p-3"
+              />
+              <input
+                type="email"
+                name="correo"
+                data-cy="input-correo"
+                value={form.correo}
+                onChange={(e) => setForm({ ...form, correo: e.target.value })}
+                placeholder="Correo electrónico"
+                className="w-full border border-gray-300 rounded-lg p-3"
+                required
+              />
               <div>
                 <div className="text-xs text-gray-600 mb-1">Institución</div>
                 <input value={instName} readOnly className="w-full border border-gray-300 rounded-lg p-3 bg-gray-50 text-gray-700" />
               </div>
               <div className="flex justify-end gap-3 mt-6 pt-4 border-t">
-                <button type="button" className="px-4 py-2 border rounded-lg hover:bg-gray-50" onClick={() => setCrear(false)} disabled={submitting}>Cancelar</button>
+                <button type="button" data-cy="btn-cancel-create" className="px-4 py-2 border rounded-lg hover:bg-gray-50" onClick={() => setCrear(false)} disabled={submitting}>Cancelar</button>
                 <button 
-                  type="submit" 
+                  type="submit"
+                  data-cy="btn-registrar"
                   className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                   disabled={submitting}
                 >
@@ -752,37 +874,52 @@ const Estudiantes: React.FC = () => {
       )}
 
       {editOpen && (
-        <div className="fixed inset-0 bg-black/40 grid place-items-center z-50">
+        <div className="fixed inset-0 bg-black/40 grid place-items-center z-50" data-cy="modal-edit-student">
           <div className="bg-white rounded-lg shadow-lg w-full max-w-lg p-6">
             <div className="flex justify-between items-center border-b pb-3 mb-3">
               <h2 className="text-xl font-semibold">Editar Estudiante</h2>
-              <button className="text-gray-400 hover:text-gray-600" onClick={() => setEditOpen(false)}>✕</button>
+              <button data-cy="btn-close-edit" className="text-gray-400 hover:text-gray-600" onClick={() => setEditOpen(false)}>✕</button>
             </div>
             {editMsg && <div className="mb-3 p-2 rounded border border-red-200 bg-red-50 text-red-700 text-sm">{editMsg}</div>}
             <div className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <input value={edit.nombre || ""} onChange={(e) => setEdit({ ...edit, nombre: e.target.value })} placeholder="Nombre" className="w-full border border-gray-300 rounded-lg p-3" />
-                <input value={edit.apellido || ""} onChange={(e) => setEdit({ ...edit, apellido: e.target.value })} placeholder="Apellido" className="w-full border border-gray-300 rounded-lg p-3" />
+                <input name="nombre_edit" data-cy="input-nombre-edit" value={edit.nombre || ""} onChange={(e) => setEdit({ ...edit, nombre: e.target.value })} placeholder="Nombre" className="w-full border border-gray-300 rounded-lg p-3" />
+                <input name="apellido_edit" data-cy="input-apellido-edit" value={edit.apellido || ""} onChange={(e) => setEdit({ ...edit, apellido: e.target.value })} placeholder="Apellido" className="w-full border border-gray-300 rounded-lg p-3" />
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <NiceSelect className="w-full" value={edit.tipo_documento || ""} onChange={(v) => setEdit({ ...edit, tipo_documento: v })}
-                  options={[{ value: "", label: "Tipo de Documento" }, { value: "TI", label: "Tarjeta de Identidad" }, { value: "CC", label: "Cédula de Ciudadanía" }, { value: "CE", label: "Cédula de Extranjería" }]} />
-                <input value={edit.numero_documento || ""} onChange={(e) => setEdit({ ...edit, numero_documento: e.target.value })} placeholder="Número de documento" className="w-full border border-gray-300 rounded-lg p-3" />
+                <select name="tipo_documento_edit" data-cy="select-tipo-documento-edit" className="w-full border border-gray-300 rounded-lg p-3 bg-white text-sm" value={edit.tipo_documento || ""} onChange={(e) => setEdit({ ...edit, tipo_documento: e.target.value })}>
+                  <option value="">Tipo de Documento</option>
+                  <option value="TI">Tarjeta de Identidad</option>
+                  <option value="CC">Cédula de Ciudadanía</option>
+                  <option value="CE">Cédula de Extranjería</option>
+                </select>
+                <input name="identificacion_edit" data-cy="input-document-edit" value={edit.numero_documento || ""} onChange={(e) => setEdit({ ...edit, numero_documento: e.target.value })} placeholder="Número de documento" className="w-full border border-gray-300 rounded-lg p-3" />
               </div>
-              <input value={edit.correo || ""} onChange={(e) => setEdit({ ...edit, correo: e.target.value })} placeholder="Correo electrónico" className="w-full border border-gray-300 rounded-lg p-3" />
-              <input value={edit.direccion || ""} onChange={(e) => setEdit({ ...edit, direccion: e.target.value })} placeholder="Dirección" className="w-full border border-gray-300 rounded-lg p-3" />
+              <input name="correo_edit" data-cy="input-correo-edit" value={edit.correo || ""} onChange={(e) => setEdit({ ...edit, correo: e.target.value })} placeholder="Correo electrónico" className="w-full border border-gray-300 rounded-lg p-3" />
+              <input name="direccion_edit" data-cy="input-direccion-edit" value={edit.direccion || ""} onChange={(e) => setEdit({ ...edit, direccion: e.target.value })} placeholder="Dirección" className="w-full border border-gray-300 rounded-lg p-3" />
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <NiceSelect className="w-full" value={(edit.grado as any) ?? ""} onChange={(v) => setEdit({ ...edit, grado: v })}
-                  options={[{ value: "", label: "Grado" }, { value: "10", label: "Décimo (10°)" }, { value: "11", label: "Undécimo (11°)" }]} />
-                <NiceSelect className="w-full" value={edit.curso || ""} onChange={(v) => setEdit({ ...edit, curso: v })}
-                  options={[{ value: "", label: "Curso" }, { value: "A", label: "A" }, { value: "B", label: "B" }, { value: "C", label: "C" }]} />
-                <NiceSelect className="w-full" value={edit.jornada || ""} onChange={(v) => setEdit({ ...edit, jornada: v })}
-                  options={[{ value: "", label: "Jornada" }, { value: "mañana", label: "Mañana" }, { value: "tarde", label: "Tarde" }]} />
+                <select name="grado_edit" data-cy="select-grado-edit" className="w-full border border-gray-300 rounded-lg p-3 bg-white text-sm" value={(edit.grado as any) ?? ""} onChange={(e) => setEdit({ ...edit, grado: e.target.value })}>
+                  <option value="">Grado</option>
+                  <option value="10">Décimo (10°)</option>
+                  <option value="11">Undécimo (11°)</option>
+                </select>
+                <select name="curso_edit" data-cy="select-curso-edit" className="w-full border border-gray-300 rounded-lg p-3 bg-white text-sm" value={edit.curso || ""} onChange={(e) => setEdit({ ...edit, curso: e.target.value })}>
+                  <option value="">Curso</option>
+                  <option value="A">A</option>
+                  <option value="B">B</option>
+                  <option value="C">C</option>
+                </select>
+                <select name="jornada_edit" data-cy="select-jornada-edit" className="w-full border border-gray-300 rounded-lg p-3 bg-white text-sm" value={edit.jornada || ""} onChange={(e) => setEdit({ ...edit, jornada: e.target.value })}>
+                  <option value="">Jornada</option>
+                  <option value="mañana">Mañana</option>
+                  <option value="tarde">Tarde</option>
+                </select>
               </div>
             </div>
             <div className="flex justify-end gap-3 mt-6 pt-4 border-t">
-              <button className="px-4 py-2 border rounded-lg hover:bg-gray-50" onClick={() => setEditOpen(false)} disabled={submitting}>Cancelar</button>
+              <button data-cy="btn-cancel-edit" className="px-4 py-2 border rounded-lg hover:bg-gray-50" onClick={() => setEditOpen(false)} disabled={submitting}>Cancelar</button>
               <button 
+                data-cy="btn-save-edit"
                 className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2" 
                 onClick={guardarEditar}
                 disabled={submitting}
@@ -824,26 +961,26 @@ const Estudiantes: React.FC = () => {
       )}
 
       {confirm && confirm.t === "inactivar" && (
-        <div className="fixed inset-0 bg-black/40 grid place-items-center z-50">
+        <div className="fixed inset-0 bg-black/40 grid place-items-center z-50" data-cy="modal-confirm">
           <div className="bg-white rounded-lg shadow-lg w-full max-w-md p-6">
             <h3 className="text-lg font-semibold mb-2">Inactivar Estudiante</h3>
             <p className="text-gray-600 mb-4">¿Estás seguro de inactivar a este estudiante?</p>
             <div className="flex justify-end gap-3">
-              <button className="px-4 py-2 border rounded-lg hover:bg-gray-50" onClick={() => setConfirm(null)}>Cancelar</button>
-              <button className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700" onClick={confirmarInactivar}>Confirmar</button>
+              <button data-cy="btn-cancel-confirm" className="px-4 py-2 border rounded-lg hover:bg-gray-50" onClick={() => setConfirm(null)}>Cancelar</button>
+              <button data-cy="btn-confirm" className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700" onClick={confirmarInactivar}>Confirmar</button>
             </div>
           </div>
         </div>
       )}
 
       {confirm && confirm.t === "eliminar" && (
-        <div className="fixed inset-0 bg-black/40 grid place-items-center z-50">
+        <div className="fixed inset-0 bg-black/40 grid place-items-center z-50" data-cy="modal-confirm">
           <div className="bg-white rounded-lg shadow-lg w-full max-w-md p-6">
             <h3 className="text-lg font-semibold mb-2">Eliminar Estudiante</h3>
             <p className="text-gray-600 mb-4">¿Eliminar definitivamente a este estudiante?</p>
             <div className="flex justify-end gap-3">
-              <button className="px-4 py-2 border rounded-lg hover:bg-gray-50" onClick={() => setConfirm(null)}>Cancelar</button>
-              <button className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700" onClick={confirmarEliminar}>Confirmar</button>
+              <button data-cy="btn-cancel-confirm" className="px-4 py-2 border rounded-lg hover:bg-gray-50" onClick={() => setConfirm(null)}>Cancelar</button>
+              <button data-cy="btn-confirm" className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700" onClick={confirmarEliminar}>Confirmar</button>
             </div>
           </div>
         </div>

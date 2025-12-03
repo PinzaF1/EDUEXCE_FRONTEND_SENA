@@ -86,7 +86,7 @@ export default defineConfig({
 
   // Servidor de desarrollo
   server: {
-    port: 5174,
+    port: 5173,
     strictPort: false,
     open: false,
     proxy: {

@@ -1,0 +1,14 @@
+[
+  {
+    "id": 1,
+    "titulo": "Bienvenido",
+    "mensaje": "Tu sesión ha iniciado correctamente",
+    "leida": false
+  },
+  {
+    "id": 2,
+    "titulo": "Recordatorio",
+    "mensaje": "No olvides completar tu perfil",
+    "leida": true
+  }
+]
