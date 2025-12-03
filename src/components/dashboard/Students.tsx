@@ -1,5 +1,5 @@
 // src/assets/Estudiantes.tsx
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import {
   FaSearch, FaPlus, FaFileUpload, FaEdit, FaTrash,
   FaToggleOn, FaTimes,
@@ -164,6 +164,8 @@ const Estudiantes: React.FC = () => {
   const [impOpen, setImpOpen] = useState(false), [drag, setDrag] = useState(false);
   
   const fileRef = useRef<HTMLInputElement>(null);
+  const listarRef = useRef<AbortController | null>(null);
+  const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout | null>(null);
   const instName = (typeof window !== 'undefined' ? localStorage.getItem('nombre_institucion') : '') || '';
 
   // Función toast mejorada - mensajes más largos para duplicados
@@ -258,7 +260,16 @@ const Estudiantes: React.FC = () => {
     })();
   }, []);
 
-  const listar = async () => {
+  // FUNCIÓN LISTAR CON ABORT CONTROLLER
+  const listar = useCallback(async () => {
+    // Cancelar petición anterior si existe
+    if (listarRef.current) {
+      listarRef.current.abort();
+    }
+    
+    // Crear nuevo abort controller
+    listarRef.current = new AbortController();
+    
     try {
       setLoading(true);
       setError(null);
@@ -269,29 +280,70 @@ const Estudiantes: React.FC = () => {
       if (q) qs.set("q", q);
       qs.set("_ts", String(Date.now()));
       console.log("Cargando estudiantes desde:", api(`/admin/estudiantes?${qs.toString()}`));
-      const d = await jfetch(api(`/admin/estudiantes?${qs.toString()}`), {
-        headers: { ...hdrs(), "Cache-Control": "no-cache" },
+      
+      const response = await fetch(api(`/admin/estudiantes?${qs.toString()}`), {
+        signal: listarRef.current.signal,
+        headers: { 
+          ...hdrs(), 
+          "Cache-Control": "no-cache" 
+        },
+        credentials: 'include'
       });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const d = await response.json();
       console.log("Respuesta del servidor:", d);
       setRows((Array.isArray(d) ? d : []).map(normRow));
       setPage(1);
-    } catch (e: any) {
-      console.error("Error al cargar estudiantes:", e);
-      const errorMsg = e.message || "No se pudo cargar la lista de estudiantes"
+    } catch (error: any) {
+      // Ignorar errores de cancelación
+      if (error.name === 'AbortError') {
+        console.log('Petición cancelada');
+        return;
+      }
+      
+      console.error("Error al cargar estudiantes:", error);
+      const errorMsg = error.message || "No se pudo cargar la lista de estudiantes";
       setError(errorMsg);
       say(errorMsg, "err");
     } finally {
       setLoading(false);
     }
-  };
-  
-  useEffect(() => { 
-    if (token()) listar(); 
-  }, []);
-  
+  }, [grado, curso, jornada, q]);
+
+  // USEEFFECT PRINCIPAL CON CONTROL DE EJECUCIÓN
   useEffect(() => {
-    if (token()) listar();
-  }, [grado, curso, jornada]);
+    const timer = setTimeout(() => {
+      if (token()) {
+        listar();
+      }
+    }, 100); // Pequeño delay para evitar múltiples ejecuciones inmediatas
+
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [listar]);
+
+  // Cleanup para el timeout de búsqueda
+  useEffect(() => {
+    return () => {
+      if (searchTimeout) {
+        clearTimeout(searchTimeout);
+      }
+    };
+  }, [searchTimeout]);
+
+  // Cleanup para el abort controller
+  useEffect(() => {
+    return () => {
+      if (listarRef.current) {
+        listarRef.current.abort();
+      }
+    };
+  }, []);
 
   const onCrear = async (ev: React.FormEvent) => {
     ev.preventDefault();
@@ -819,12 +871,35 @@ const Estudiantes: React.FC = () => {
         <div className="flex-1 flex border border-gray-300 rounded-lg overflow-hidden">
           <input
             value={q}
-            onChange={(e) => { setQ(e.target.value); setPage(1); }}
+            onChange={(e) => { 
+              const value = e.target.value;
+              setQ(value);
+              setPage(1);
+              
+              // Cancelar timeout anterior
+              if (searchTimeout) {
+                clearTimeout(searchTimeout);
+              }
+              
+              // Crear nuevo timeout para búsqueda diferida
+              const timeout = setTimeout(() => {
+                listar();
+              }, 500);
+              
+              setSearchTimeout(timeout);
+            }}
             placeholder="Buscar por nombre o apellido..."
             className="px-4 py-2 flex-1 outline-none text-sm"
           />
           <button
-            onClick={() => { setPage(1); listar(); }}
+            onClick={() => { 
+              // Cancelar cualquier timeout pendiente
+              if (searchTimeout) {
+                clearTimeout(searchTimeout);
+              }
+              setPage(1); 
+              listar(); 
+            }}
             className="px-4 py-2 bg-blue-600 text-white hover:bg-blue-700 flex items-center gap-2"
           >
             <FaSearch className="text-sm" />
