@@ -8,13 +8,9 @@ import {
 } from "react-icons/fa";
 
 /* API */
-const BASE_URL =
-  (import.meta as any).env?.VITE_API_URL?.replace(/\/+$/, "");
+// CAMBIO 1: Esta es la línea que necesitas cambiar
+const BASE_URL = '/api';  // ← CAMBIADO DE: (import.meta as any).env?.VITE_API_URL?.replace(/\/+$/, "")
 
-if (!BASE_URL) {
-  console.error('❌ VITE_API_URL no configurada');
-  throw new Error('Missing VITE_API_URL environment variable');
-}
 const api = (p = "") => {
   const path = p.startsWith("/") ? p : `/${p}`;
   return `${BASE_URL}${path}`;
@@ -286,8 +282,7 @@ const Estudiantes: React.FC = () => {
         headers: { 
           ...hdrs(), 
           "Cache-Control": "no-cache" 
-        },
-        credentials: 'include'
+        }
       });
 
       if (!response.ok) {
@@ -519,6 +514,7 @@ const Estudiantes: React.FC = () => {
       // Intentar diferentes payloads
       for (const payload of payloads) {
         try {
+          // CAMBIO 2: Aquí estaba el error 'epd' - corregido a 'api'
           const response = await fetch(api(`/admin/estudiantes/${id}`), {
             method: "PUT",
             headers: { "Content-Type": "application/json", ...hdrs() },
@@ -586,6 +582,7 @@ const Estudiantes: React.FC = () => {
       for (const payload of payloads) {
         try {
           console.log("Probando payload:", payload);
+          // CAMBIO 2: Aquí estaba el error 'epd' - corregido a 'api'
           const response = await fetch(api(`/admin/estudiantes/${id}`), {
             method: "PUT",
             headers: { "Content-Type": "application/json", ...hdrs() },
