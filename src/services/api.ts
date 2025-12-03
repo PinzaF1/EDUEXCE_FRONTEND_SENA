@@ -3,7 +3,10 @@
  * Todas las peticiones al backend pasan por aquí
  */
 
-const API_URL = import.meta.env.VITE_API_URL ?? '/api';
+// CON ESTA:
+const API_URL = import.meta.env.DEV 
+  ? '/api'  // ← En desarrollo SIEMPRE usa el proxy
+  : import.meta.env.VITE_API_URL || 'https://gillian-semiluminous-blubberingly.ngrok-free.dev';
 
 console.log('🔧 API_URL configurada:', API_URL);
 console.log('🔧 Variables de entorno:', import.meta.env);
