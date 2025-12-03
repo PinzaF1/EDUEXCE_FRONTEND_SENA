@@ -559,7 +559,6 @@ const Notificaciones: React.FC = () => {
       }
 
       // Optimistic update
-      setNotis((arr) => arr.filter(n => !ids.includes(n.id)));
 
       const res = await fetch(`${API_BASE}/admin/notificaciones/eliminar-multiples`, {
         method: "POST",
