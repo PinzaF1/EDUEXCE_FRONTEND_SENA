@@ -558,8 +558,6 @@ const Notificaciones: React.FC = () => {
         return;
       }
 
-      // Optimistic update
-
       const res = await fetch(`${API_BASE}/admin/notificaciones/eliminar-multiples`, {
         method: "POST",
         headers: {
