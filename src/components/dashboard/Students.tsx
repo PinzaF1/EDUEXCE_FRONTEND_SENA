@@ -1,9 +1,10 @@
 // src/assets/Estudiantes.tsx
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import {
   FaSearch, FaPlus, FaFileUpload, FaEdit, FaTrash,
   FaToggleOn, FaTimes,
-  FaCheckCircle, FaTimesCircle, FaSpinner, FaExclamationCircle
+  FaCheckCircle, FaTimesCircle, FaSpinner, FaExclamationCircle,
+  FaUser, FaIdCard, FaSchool, FaInfoCircle
 } from "react-icons/fa";
 
 import api, { request, buildUrl } from "../../services/api";
@@ -117,8 +118,9 @@ const Estudiantes: React.FC = () => {
   const [crear, setCrear] = useState(false);
   const [form, setForm] = useState({
     nombre: "", apellido: "", tipo_documento: "", numero_documento: "",
-    grado: "", curso: "", jornada: "", correo: "", direccion: "",
+    grado: "", curso: "", jornada: "", correo: "", telefono: "", direccion: "",
   });
+  const [camposTocados, setCamposTocados] = useState<Record<string, boolean>>({});
   const [editOpen, setEditOpen] = useState(false),
     [edit, setEdit] = useState<Partial<Estudiante>>({}),
     [editMsg, setEditMsg] = useState("");
@@ -127,10 +129,76 @@ const Estudiantes: React.FC = () => {
   const [page, setPage] = useState(1);
   const pageSize = 10;
   const [impOpen, setImpOpen] = useState(false), [drag, setDrag] = useState(false);
+  
   const fileRef = useRef<HTMLInputElement>(null);
+  const listarRef = useRef<AbortController | null>(null);
+  const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout | null>(null);
   const instName = (typeof window !== 'undefined' ? localStorage.getItem('nombre_institucion') : '') || '';
 
-  const say = (text: string, type?: "ok" | "err" | "info") => { setToast({ text, type }); setTimeout(() => setToast(null), 4200); };
+  // Función toast mejorada - mensajes más largos para duplicados
+  const say = (text: string, type?: "ok" | "err" | "info") => { 
+    // Si es un mensaje importante de duplicados, hacerlo más largo
+    const isImportantDuplicate = text.includes('pertenecen a otra institución') || 
+                                 text.includes('duplicados') ||
+                                 text.includes('ya existen') ||
+                                 text.includes('ya existían');
+    
+    const duration = isImportantDuplicate ? 6000 : 4200; // 6 segundos para duplicados importantes
+    
+    setToast({ text, type }); 
+    setTimeout(() => setToast(null), duration);
+  };
+
+  // Campos obligatorios para validación
+  const camposObligatorios = ['nombre', 'apellido', 'tipo_documento', 'numero_documento', 'correo', 'telefono'];
+  
+  // Validación específica para número de documento (exactamente 10 dígitos)
+  const validarNumeroDocumento = (documento: string): boolean => {
+    return /^\d{10}$/.test(documento);
+  };
+
+  // Validación del formulario
+  const formularioValido = useMemo(() => {
+    return camposObligatorios.every(campo => {
+      const valor = form[campo as keyof typeof form];
+      const esValido = typeof valor === 'string' && valor.trim() !== '';
+      
+      // Validación adicional para número de documento
+      if (campo === 'numero_documento' && esValido) {
+        return validarNumeroDocumento(valor.trim());
+      }
+      
+      return esValido;
+    });
+  }, [form]);
+
+  // Función para marcar campo como tocado
+  const tocarCampo = (nombreCampo: string) => {
+    setCamposTocados(prev => ({
+      ...prev,
+      [nombreCampo]: true
+    }));
+  };
+
+  // Verificar si un campo tiene error
+  const campoConError = (nombreCampo: string) => {
+    const valor = form[nombreCampo as keyof typeof form]?.trim();
+    
+    if (!camposTocados[nombreCampo]) return false;
+    
+    // Validación especial para número de documento
+    if (nombreCampo === 'numero_documento') {
+      return !valor || !validarNumeroDocumento(valor);
+    }
+    
+    return !valor;
+  };
+
+  // Manejar cambio en número de documento (solo números)
+  const handleNumeroDocumentoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const valor = e.target.value.replace(/\D/g, ''); // Solo números
+    setForm({ ...form, numero_documento: valor });
+  };
 
   // Normaliza is_active leyendo is_active / is_activo / isActive / activo
   const normRow = (r: any): Estudiante => ({
@@ -159,7 +227,16 @@ const Estudiantes: React.FC = () => {
     })();
   }, []);
 
-  const listar = async () => {
+  // FUNCIÓN LISTAR CON ABORT CONTROLLER
+  const listar = useCallback(async () => {
+    // Cancelar petición anterior si existe
+    if (listarRef.current) {
+      listarRef.current.abort();
+    }
+    
+    // Crear nuevo abort controller
+    listarRef.current = new AbortController();
+    
     try {
       setLoading(true);
       setError(null);
@@ -174,9 +251,15 @@ const Estudiantes: React.FC = () => {
       console.log("Respuesta del servidor:", d);
       setRows((Array.isArray(d) ? d : []).map(normRow));
       setPage(1);
-    } catch (e: any) {
-      console.error("Error al cargar estudiantes:", e);
-      const errorMsg = e.message || "No se pudo cargar la lista de estudiantes";
+    } catch (error: any) {
+      // Ignorar errores de cancelación
+      if (error.name === 'AbortError') {
+        console.log('Petición cancelada');
+        return;
+      }
+      
+      console.error("Error al cargar estudiantes:", error);
+      const errorMsg = error.message || "No se pudo cargar la lista de estudiantes";
       setError(errorMsg);
       say(errorMsg, "err");
     } finally {
@@ -196,6 +279,20 @@ const Estudiantes: React.FC = () => {
 
   const onCrear = async (ev: React.FormEvent) => {
     ev.preventDefault();
+    
+    // Marcar todos los campos como tocados para mostrar errores
+    const todosTocados: Record<string, boolean> = {};
+    camposObligatorios.forEach(campo => {
+      todosTocados[campo] = true;
+    });
+    setCamposTocados(todosTocados);
+    
+    // Si el formulario no es válido, no enviar
+    if (!formularioValido) {
+      say("Por favor completa todos los campos obligatorios correctamente", "err");
+      return;
+    }
+    
     try {
       setSubmitting(true);
       await request('/admin/estudiantes', {
@@ -203,25 +300,85 @@ const Estudiantes: React.FC = () => {
         body: JSON.stringify({
           ...form,
           correo: form.correo?.trim() || null,
+          telefono: form.telefono?.trim() || null,
           direccion: form.direccion?.trim() || null,
           grado: form.grado || null,
           curso: form.curso || null,
           jornada: form.jornada || null,
         })
       });
-      say("Estudiante registrado exitosamente", "ok");
+      
+      say("✅ Estudiante registrado exitosamente", "ok");
       setCrear(false);
-      setForm({ nombre: "", apellido: "", tipo_documento: "", numero_documento: "", grado: "", curso: "", jornada: "", correo: "", direccion: "" });
+      setForm({ nombre: "", apellido: "", tipo_documento: "", numero_documento: "", grado: "", curso: "", jornada: "", correo: "", telefono: "", direccion: "" });
+      setCamposTocados({});
       await listar();
     } catch (e: any) {
-      say(e.message || "Error al registrar estudiante", "err");
+      // Verificar si el error es por duplicado
+      if (e.message?.includes('duplicado') || e.message?.includes('ya existe') || e.message?.includes('existente')) {
+        say(`⚠️ ${e.message}`, 'info');
+      } else {
+        say(`❌ ${e.message || "Error al registrar estudiante"}`, 'err');
+      }
     } finally {
       setSubmitting(false);
     }
   };
 
-  const abrirEditar = (e: Estudiante) => { setEditMsg(""); setEdit({ ...e }); setEditOpen(true); };
+  // Estados para validación de edición
+  const [camposEditTocados, setCamposEditTocados] = useState<Record<string, boolean>>({});
+  
+  const abrirEditar = (e: Estudiante) => { 
+    setEditMsg(""); 
+    setEdit({ ...e }); 
+    setEditOpen(true);
+    setCamposEditTocados({}); // Limpiar validación al abrir
+  };
+
+  // Función para validar campos en edición
+  const validarCampoEdicion = (campo: string, valor: string): boolean => {
+    return valor.trim() !== "";
+  };
+
+  // Verificar si un campo en edición tiene error
+  const campoEditConError = (nombreCampo: string) => {
+    const valor = edit[nombreCampo as keyof typeof edit] as string || "";
+    if (!camposEditTocados[nombreCampo]) return false;
+    return !validarCampoEdicion(nombreCampo, valor);
+  };
+
+  // Función para marcar campo en edición como tocado
+  const tocarCampoEdit = (nombreCampo: string) => {
+    setCamposEditTocados(prev => ({
+      ...prev,
+      [nombreCampo]: true
+    }));
+  };
+
+  // Validar si todo el formulario de edición es válido
+  const formularioEdicionValido = useMemo(() => {
+    const camposRequeridos = ['nombre', 'apellido', 'tipo_documento', 'numero_documento', 'correo'];
+    return camposRequeridos.every(campo => {
+      const valor = edit[campo as keyof typeof edit] as string || "";
+      return validarCampoEdicion(campo, valor);
+    });
+  }, [edit]);
+
   const guardarEditar = async () => {
+    // Marcar todos los campos requeridos como tocados
+    const camposRequeridos = ['nombre', 'apellido', 'tipo_documento', 'numero_documento', 'correo'];
+    const nuevosTocados: Record<string, boolean> = {};
+    camposRequeridos.forEach(campo => {
+      nuevosTocados[campo] = true;
+    });
+    setCamposEditTocados(nuevosTocados);
+    
+    // Si el formulario no es válido, mostrar error y no guardar
+    if (!formularioEdicionValido) {
+      setEditMsg("Por favor completa todos los campos obligatorios");
+      return;
+    }
+    
     try {
       if (!edit?.id_usuario) return setEditMsg("Falta id");
       setSubmitting(true);
@@ -241,6 +398,8 @@ const Estudiantes: React.FC = () => {
       });
       say("Estudiante actualizado exitosamente", "ok");
       setEditOpen(false);
+      // Limpiar estados de validación
+      setCamposEditTocados({});
       await listar();
     } catch (e: any) {
       setEditMsg(e.message || "Error al actualizar estudiante");
@@ -249,39 +408,55 @@ const Estudiantes: React.FC = () => {
     }
   };
 
-  /* Activar/Inactivar */
+  /* Activar/Inactivar - MEJORADO */
   const reactivar = async (e: Estudiante) => {
     const id = e.id_usuario;
+    const estudianteNombre = `${e.nombre} ${e.apellido}`;
+    
+    // Actualizar UI inmediatamente
     setRows((rs) => rs.map((r) => (r.id_usuario === id ? { ...r, is_active: true } : r)));
+    
     try {
       await request(`/admin/estudiantes/${id}`, { method: 'PUT', body: JSON.stringify({ is_active: true }) });
       say("Estudiante reactivado.", "ok");
       await listar();
     } catch (err: any) {
+      // Revertir cambios en UI
       setRows((rs) => rs.map((r) => (r.id_usuario === id ? { ...r, is_active: false } : r)));
-      say(err.message || "Error al reactivar", "err");
+      console.error("Error al reactivar:", err);
+      say(err.message || "❌ Error al reactivar estudiante", "err");
     }
   };
 
   const confirmarInactivar = async () => {
     if (!confirm?.e) return;
     const id = confirm.e.id_usuario;
+    const estudianteNombre = `${confirm.e.nombre} ${confirm.e.apellido}`;
+    
+    // Actualizar UI inmediatamente
     setRows((rs) => rs.map((r) => (r.id_usuario === id ? { ...r, is_active: false } : r)));
+    
     try {
       await request(`/admin/estudiantes/${id}`, { method: 'PUT', body: JSON.stringify({ is_active: false }) });
       say("Estudiante inactivado.", "ok");
       setConfirm(null);
       await listar();
     } catch (e: any) {
+      // Revertir cambios en UI
       setRows((rs) => rs.map((r) => (r.id_usuario === id ? { ...r, is_active: true } : r)));
-      say(e.message || "Error al inactivar", "err");
+      console.error("Error en inactivación:", e);
+      say(e.message || "❌ Error al inactivar estudiante", "err");
     }
   };
 
   const pedirEliminar = (e: Estudiante) => setConfirm({ t: "eliminar", e });
+
+  // MODIFICADO: Cuando se confirma eliminar, si tiene historial se inactiva
   const confirmarEliminar = async () => {
     if (!confirm?.e) return;
     const id = confirm.e.id_usuario;
+    const estudianteNombre = `${confirm.e.nombre} ${confirm.e.apellido}`;
+    
     try {
       try {
         await request(`/admin/estudiantes/${id}`, { method: 'DELETE' });
@@ -295,6 +470,9 @@ const Estudiantes: React.FC = () => {
           throw err;
         }
       }
+      
+      await listar();
+      
     } catch (e: any) {
       say(e.message || "Error al eliminar", "err");
     } finally {
@@ -311,28 +489,71 @@ const Estudiantes: React.FC = () => {
       // Use centralized upload helper to keep headers and auth consistent
       return api.uploadTo(u, fd);
     };
+    
+    // FUNCIÓN SIMPLIFICADA: Solo muestra toasts, no modal grande
     const showAlerts = (obj: any) => {
+      console.log('DEBUG - Respuesta completa del backend:', obj);
+      
       const insertados = Number(obj?.insertados ?? obj?.creados ?? 0);
       const actualizados = Number(obj?.actualizados ?? 0);
       const duplicados = Number(obj?.duplicados_en_archivo ?? obj?.duplicados ?? 0);
       const omitidosExist = Number(obj?.omitidos_por_existir ?? 0);
       const omitidosOtrasInst = Number(obj?.omitidos_por_otras_instituciones ?? 0);
-      const conflictos = Array.isArray(obj?.documentos_en_otras_instituciones) ? obj.documentos_en_otras_instituciones.length : omitidosOtrasInst;
       const total = Number(obj?.total_leidos ?? 0);
-      // Alertas separadas por categoría
-      if (insertados > 0) say(`Importado: ${insertados} creados`, 'ok');
-      if (actualizados > 0) say(`${actualizados} actualizados`, 'ok');
-      if (duplicados > 0) say(`${duplicados} duplicados en el archivo`, 'info');
-      if (omitidosExist > 0) say(`${omitidosExist} ya existían en la institución`, 'info');
-      if (conflictos > 0) say(`${conflictos} pertenecen a otra institución`, 'info');
-      if (insertados + actualizados === 0 && duplicados + omitidosExist + conflictos === 0) {
-        const tips = total ? ` (leídos: ${total})` : '';
-        say(`No se realizaron cambios${tips}. Revisa encabezados y formato.`, 'info');
+      
+      // Alertas separadas por categoria - MENSJES MEJORADOS
+      if (insertados > 0) {
+        if (insertados === 1) {
+          say(`✅ 1 estudiante creado exitosamente`, 'ok');
+        } else {
+          say(`✅ ${insertados} estudiantes creados exitosamente`, 'ok');
+        }
       }
+      
+      if (actualizados > 0) {
+        if (actualizados === 1) {
+          say(`✅ 1 estudiante actualizado`, 'ok');
+        } else {
+          say(`✅ ${actualizados} estudiantes actualizados`, 'ok');
+        }
+      }
+      
+      if (duplicados > 0) {
+        if (duplicados === 1) {
+          say(`⚠️ 1 estudiante duplicado en el archivo (misma fila repetida)`, 'info');
+        } else {
+          say(`⚠️ ${duplicados} estudiantes duplicados en el archivo (filas repetidas)`, 'info');
+        }
+      }
+      
+      if (omitidosExist > 0) {
+        if (omitidosExist === 1) {
+          say(`⚠️ 1 estudiante ya existía en esta institución`, 'info');
+        } else {
+          say(`⚠️ ${omitidosExist} estudiantes ya existían en esta institución`, 'info');
+        }
+      }
+      
+      if (omitidosOtrasInst > 0) {
+        if (omitidosOtrasInst === 1) {
+          say(`❌ 1 estudiante pertenece a otra institución y no fue registrado`, 'err');
+        } else {
+          say(`❌ ${omitidosOtrasInst} estudiantes pertenecen a otras instituciones y no fueron registrados`, 'err');
+        }
+      }
+      
+      if (insertados + actualizados === 0 && duplicados + omitidosExist + omitidosOtrasInst === 0) {
+        const tips = total ? ` (leídos: ${total})` : '';
+        say(`ℹ️ No se realizaron cambios${tips}. Revisa encabezados y formato.`, 'info');
+      }
+      
       // Resumen final
-      const resumen = `Importado: ${insertados} nuevos, ${actualizados} act.${total ? ` (leídos: ${total})` : ''}`;
-      say(resumen, insertados + actualizados > 0 ? 'ok' : 'info');
+      if (insertados + actualizados > 0) {
+        const resumen = `📊 Resultado: ${insertados} nuevos, ${actualizados} actualizados${total ? ` (total leídos: ${total})` : ''}`;
+        say(resumen, 'ok');
+      }
     };
+    
     try {
       let r = await up(A);
       if (r.status === 404) r = await up(B);
@@ -440,12 +661,35 @@ const Estudiantes: React.FC = () => {
         <div className="flex-1 flex border border-gray-300 rounded-lg overflow-hidden">
           <input
             value={q}
-            onChange={(e) => { setQ(e.target.value); setPage(1); }}
+            onChange={(e) => { 
+              const value = e.target.value;
+              setQ(value);
+              setPage(1);
+              
+              // Cancelar timeout anterior
+              if (searchTimeout) {
+                clearTimeout(searchTimeout);
+              }
+              
+              // Crear nuevo timeout para búsqueda diferida
+              const timeout = setTimeout(() => {
+                listar();
+              }, 500);
+              
+              setSearchTimeout(timeout);
+            }}
             placeholder="Buscar por nombre o apellido..."
             className="px-4 py-2 flex-1 outline-none text-sm"
           />
           <button
-            onClick={() => { setPage(1); listar(); }}
+            onClick={() => { 
+              // Cancelar cualquier timeout pendiente
+              if (searchTimeout) {
+                clearTimeout(searchTimeout);
+              }
+              setPage(1); 
+              listar(); 
+            }}
             className="px-4 py-2 bg-blue-600 text-white hover:bg-blue-700 flex items-center gap-2"
           >
             <FaSearch className="text-sm" />
@@ -465,7 +709,7 @@ const Estudiantes: React.FC = () => {
       {/* Filters */}
       <div className="bg-white border border-gray-200 rounded-lg shadow-sm">
         <div className="px-5 py-4 border-b"><span className="text-sm text-gray-700 font-medium">Filtros</span></div>
-        <div className="px-5 py-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="px-5 py-4 grid grid-cols-3 gap-4">
           <NiceSelect className="w-full" value={grado} onChange={setGrado}
             options={[{ value: "", label: "Todos los grados" }, { value: "10", label: "10°" }, { value: "11", label: "11°" }]} />
           <NiceSelect className="w-full" value={curso} onChange={setCurso}
@@ -476,7 +720,7 @@ const Estudiantes: React.FC = () => {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-3 gap-4">
         <div 
           className={`rounded-lg border p-4 cursor-pointer transition ${filterActivo === "todos" ? "bg-blue-50 border-blue-300" : "bg-white border-gray-200"}`}
           onClick={() => { setFilterActivo("todos"); setPage(1); }}
@@ -579,17 +823,19 @@ const Estudiantes: React.FC = () => {
                     </td>
                     <td className="px-4 py-4">
                       <div className="flex gap-2">
-                        <button className="text-blue-600 hover:text-blue-900" onClick={() => abrirEditar(e)}>
+                        <button className="text-blue-600 hover:text-blue-900" onClick={() => abrirEditar(e)} title="Editar">
                           <FaEdit size={16} />
                         </button>
                         <button
                           className={`${e.is_active ? 'text-green-600 hover:text-green-900' : 'text-red-600 hover:text-red-900'}`}
-                          onClick={() => (e.is_active ? setConfirm({ t: "inactivar", e }) : reactivar(e))}
-                          title={e.is_active ? 'Inactivar' : 'Reactivar'}
+                          onClick={() => {
+                            e.is_active ? setConfirm({ t: "inactivar", e }) : reactivar(e)
+                          }}
+                          title={e.is_active ? 'Inactivar estudiante' : 'Reactivar estudiante'}
                         >
                           <FaToggleOn size={20} />
                         </button>
-                        <button className="text-red-600 hover:text-red-900" onClick={() => pedirEliminar(e)}>
+                        <button className="text-red-600 hover:text-red-900" onClick={() => pedirEliminar(e)} title="Eliminar">
                           <FaTrash size={16} />
                         </button>
                       </div>
@@ -636,25 +882,63 @@ const Estudiantes: React.FC = () => {
         </div>
       )}
 
-      {/* Modales */}
+      {/* Modal Crear Estudiante */}
       {crear && (
         <div className="fixed inset-0 bg-black/40 grid place-items-center z-50">
-          <div className="bg-white rounded-lg shadow-lg w-full max-w-lg p-6">
+          <div className="bg-white rounded-lg shadow-lg w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center border-b pb-3 mb-4">
               <h2 className="text-xl font-semibold">Registrar Nuevo Estudiante</h2>
-              <button className="text-gray-400 hover:text-gray-600" onClick={() => setCrear(false)}>✕</button>
+              <button className="text-gray-400 hover:text-gray-600" onClick={() => { setCrear(false); setCamposTocados({}); }}>✕</button>
             </div>
             <form onSubmit={onCrear} className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <input value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })} placeholder="Nombre" className="w-full border border-gray-300 rounded-lg p-3" required />
-                <input value={form.apellido} onChange={(e) => setForm({ ...form, apellido: e.target.value })} placeholder="Apellido" className="w-full border border-gray-300 rounded-lg p-3" required />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <input 
+                    value={form.nombre} 
+                    onChange={(e) => setForm({ ...form, nombre: e.target.value })} 
+                    onBlur={() => tocarCampo('nombre')}
+                    placeholder="Nombre *" 
+                    className={`w-full border rounded-lg p-3 ${campoConError('nombre') ? 'border-red-500 bg-red-50' : 'border-gray-300'}`} 
+                  />
+                  {campoConError('nombre') && <p className="text-red-500 text-xs mt-1">Este campo es obligatorio</p>}
+                </div>
+                <div>
+                  <input 
+                    value={form.apellido} 
+                    onChange={(e) => setForm({ ...form, apellido: e.target.value })} 
+                    onBlur={() => tocarCampo('apellido')}
+                    placeholder="Apellido *" 
+                    className={`w-full border rounded-lg p-3 ${campoConError('apellido') ? 'border-red-500 bg-red-50' : 'border-gray-300'}`} 
+                  />
+                  {campoConError('apellido') && <p className="text-red-500 text-xs mt-1">Este campo es obligatorio</p>}
+                </div>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <NiceSelect className="w-full" value={form.tipo_documento} onChange={(v) => setForm({ ...form, tipo_documento: v })}
-                  options={[{ value: "", label: "Tipo de Documento" }, { value: "TI", label: "Tarjeta de Identidad" }, { value: "CC", label: "Cédula de Ciudadanía" }, { value: "CE", label: "Cédula de Extranjería" }]} />
-                <input value={form.numero_documento} onChange={(e) => setForm({ ...form, numero_documento: e.target.value })} placeholder="Número de documento" className="w-full border border-gray-300 rounded-lg p-3" required />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <NiceSelect className="w-full" value={form.tipo_documento} onChange={(v) => setForm({ ...form, tipo_documento: v })}
+                    options={[{ value: "", label: "Tipo de Documento *" }, { value: "TI", label: "Tarjeta de Identidad" }, { value: "CC", label: "Cédula de Ciudadanía" }, { value: "CE", label: "Cédula de Extranjería" }]} />
+                  {campoConError('tipo_documento') && <p className="text-red-500 text-xs mt-1">Este campo es obligatorio</p>}
+                </div>
+                <div>
+                  <input 
+                    value={form.numero_documento} 
+                    onChange={handleNumeroDocumentoChange}
+                    onBlur={() => tocarCampo('numero_documento')}
+                    placeholder="Número de documento *" 
+                    maxLength={10}
+                    className={`w-full border rounded-lg p-3 ${campoConError('numero_documento') ? 'border-red-500 bg-red-50' : 'border-gray-300'}`} 
+                  />
+                  {campoConError('numero_documento') && (
+                    <p className="text-red-500 text-xs mt-1">
+                      {!form.numero_documento ? 'Este campo es obligatorio' : 'Debe tener exactamente 10 dígitos'}
+                    </p>
+                  )}
+                  {form.numero_documento && !validarNumeroDocumento(form.numero_documento) && (
+                    <p className="text-blue-500 text-xs mt-1">{form.numero_documento.length}/10 dígitos</p>
+                  )}
+                </div>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="grid grid-cols-3 gap-4">
                 <NiceSelect className="w-full" value={form.grado} onChange={(v) => setForm({ ...form, grado: v })}
                   options={[{ value: "", label: "Grado" }, { value: "10", label: "Décimo (10°)" }, { value: "11", label: "Undécimo (11°)" }]} />
                 <NiceSelect className="w-full" value={form.curso} onChange={(v) => setForm({ ...form, curso: v })}
@@ -662,28 +946,57 @@ const Estudiantes: React.FC = () => {
                 <NiceSelect className="w-full" value={form.jornada} onChange={(v) => setForm({ ...form, jornada: v })}
                   options={[{ value: "", label: "Jornada" }, { value: "mañana", label: "Mañana" }, { value: "tarde", label: "Tarde" }]} />
               </div>
-              <input value={form.direccion} onChange={(e) => setForm({ ...form, direccion: e.target.value })} placeholder="Dirección" className="w-full border border-gray-300 rounded-lg p-3" />
-              <input type="email" value={form.correo} onChange={(e) => setForm({ ...form, correo: e.target.value })} placeholder="Correo electrónico" className="w-full border border-gray-300 rounded-lg p-3" required />
+              <div>
+                <input 
+                  type="email" 
+                  value={form.correo} 
+                  onChange={(e) => setForm({ ...form, correo: e.target.value })} 
+                  onBlur={() => tocarCampo('correo')}
+                  placeholder="Correo electrónico *" 
+                  className={`w-full border rounded-lg p-3 ${campoConError('correo') ? 'border-red-500 bg-red-50' : 'border-gray-300'}`} 
+                />
+                {campoConError('correo') && <p className="text-red-500 text-xs mt-1">Este campo es obligatorio</p>}
+              </div>
+              <div>
+                <input 
+                  value={form.telefono} 
+                  onChange={(e) => setForm({ ...form, telefono: e.target.value })} 
+                  onBlur={() => tocarCampo('telefono')}
+                  placeholder="Teléfono *" 
+                  className={`w-full border rounded-lg p-3 ${campoConError('telefono') ? 'border-red-500 bg-red-50' : 'border-gray-300'}`} 
+                />
+                {campoConError('telefono') && <p className="text-red-500 text-xs mt-1">Este campo es obligatorio</p>}
+              </div>
+              <input 
+                value={form.direccion} 
+                onChange={(e) => setForm({ ...form, direccion: e.target.value })} 
+                placeholder="Dirección" 
+                className="w-full border border-gray-300 rounded-lg p-3" 
+              />
               <div>
                 <div className="text-xs text-gray-600 mb-1">Institución</div>
                 <input value={instName} readOnly className="w-full border border-gray-300 rounded-lg p-3 bg-gray-50 text-gray-700" />
               </div>
               <div className="flex justify-end gap-3 mt-6 pt-4 border-t">
-                <button type="button" className="px-4 py-2 border rounded-lg hover:bg-gray-50" onClick={() => setCrear(false)} disabled={submitting}>Cancelar</button>
+                <button type="button" className="px-4 py-2 border rounded-lg hover:bg-gray-50" onClick={() => { setCrear(false); setCamposTocados({}); }} disabled={submitting}>Cancelar</button>
                 <button 
                   type="submit" 
                   className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                  disabled={submitting}
+                  disabled={submitting || !formularioValido}
                 >
                   {submitting && <FaSpinner className="animate-spin" />}
                   {submitting ? 'Registrando...' : 'Registrar'}
                 </button>
+              </div>
+              <div className="text-xs text-gray-500 mt-2">
+                * Campos obligatorios
               </div>
             </form>
           </div>
         </div>
       )}
 
+      {/* Modal Editar Estudiante - CON VALIDACIÓN */}
       {editOpen && (
         <div className="fixed inset-0 bg-black/40 grid place-items-center z-50">
           <div className="bg-white rounded-lg shadow-lg w-full max-w-lg p-6">
@@ -693,24 +1006,116 @@ const Estudiantes: React.FC = () => {
             </div>
             {editMsg && <div className="mb-3 p-2 rounded border border-red-200 bg-red-50 text-red-700 text-sm">{editMsg}</div>}
             <div className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <input value={edit.nombre || ""} onChange={(e) => setEdit({ ...edit, nombre: e.target.value })} placeholder="Nombre" className="w-full border border-gray-300 rounded-lg p-3" />
-                <input value={edit.apellido || ""} onChange={(e) => setEdit({ ...edit, apellido: e.target.value })} placeholder="Apellido" className="w-full border border-gray-300 rounded-lg p-3" />
+              {/* Nombre */}
+              <div>
+                <input 
+                  value={edit.nombre || ""} 
+                  onChange={(e) => setEdit({ ...edit, nombre: e.target.value })} 
+                  onBlur={() => tocarCampoEdit('nombre')}
+                  placeholder="Nombre *" 
+                  className={`w-full border rounded-lg p-3 ${campoEditConError('nombre') ? 'border-red-500 bg-red-50' : 'border-gray-300'}`} 
+                />
+                {campoEditConError('nombre') && <p className="text-red-500 text-xs mt-1">Este campo no puede estar vacío</p>}
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <NiceSelect className="w-full" value={edit.tipo_documento || ""} onChange={(v) => setEdit({ ...edit, tipo_documento: v })}
-                  options={[{ value: "", label: "Tipo de Documento" }, { value: "TI", label: "Tarjeta de Identidad" }, { value: "CC", label: "Cédula de Ciudadanía" }, { value: "CE", label: "Cédula de Extranjería" }]} />
-                <input value={edit.numero_documento || ""} onChange={(e) => setEdit({ ...edit, numero_documento: e.target.value })} placeholder="Número de documento" className="w-full border border-gray-300 rounded-lg p-3" />
+              
+              {/* Apellido */}
+              <div>
+                <input 
+                  value={edit.apellido || ""} 
+                  onChange={(e) => setEdit({ ...edit, apellido: e.target.value })} 
+                  onBlur={() => tocarCampoEdit('apellido')}
+                  placeholder="Apellido *" 
+                  className={`w-full border rounded-lg p-3 ${campoEditConError('apellido') ? 'border-red-500 bg-red-50' : 'border-gray-300'}`} 
+                />
+                {campoEditConError('apellido') && <p className="text-red-500 text-xs mt-1">Este campo no puede estar vacío</p>}
               </div>
-              <input value={edit.correo || ""} onChange={(e) => setEdit({ ...edit, correo: e.target.value })} placeholder="Correo electrónico" className="w-full border border-gray-300 rounded-lg p-3" />
-              <input value={edit.direccion || ""} onChange={(e) => setEdit({ ...edit, direccion: e.target.value })} placeholder="Dirección" className="w-full border border-gray-300 rounded-lg p-3" />
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <NiceSelect className="w-full" value={(edit.grado as any) ?? ""} onChange={(v) => setEdit({ ...edit, grado: v })}
-                  options={[{ value: "", label: "Grado" }, { value: "10", label: "Décimo (10°)" }, { value: "11", label: "Undécimo (11°)" }]} />
-                <NiceSelect className="w-full" value={edit.curso || ""} onChange={(v) => setEdit({ ...edit, curso: v })}
-                  options={[{ value: "", label: "Curso" }, { value: "A", label: "A" }, { value: "B", label: "B" }, { value: "C", label: "C" }]} />
-                <NiceSelect className="w-full" value={edit.jornada || ""} onChange={(v) => setEdit({ ...edit, jornada: v })}
-                  options={[{ value: "", label: "Jornada" }, { value: "mañana", label: "Mañana" }, { value: "tarde", label: "Tarde" }]} />
+              
+              {/* Tipo de Documento */}
+              <div>
+                <NiceSelect 
+                  className="w-full" 
+                  value={edit.tipo_documento || ""} 
+                  onChange={(v) => setEdit({ ...edit, tipo_documento: v })}
+                  options={[
+                    { value: "", label: "Tipo de Documento *" }, 
+                    { value: "TI", label: "Tarjeta de Identidad" }, 
+                    { value: "CC", label: "Cédula de Ciudadanía" }, 
+                    { value: "CE", label: "Cédula de Extranjería" }
+                  ]} 
+                />
+                {campoEditConError('tipo_documento') && <p className="text-red-500 text-xs mt-1">Este campo no puede estar vacío</p>}
+              </div>
+              
+              {/* Número de Documento */}
+              <div>
+                <input 
+                  value={edit.numero_documento || ""} 
+                  onChange={(e) => setEdit({ ...edit, numero_documento: e.target.value })} 
+                  onBlur={() => tocarCampoEdit('numero_documento')}
+                  placeholder="Número de documento *" 
+                  className={`w-full border rounded-lg p-3 ${campoEditConError('numero_documento') ? 'border-red-500 bg-red-50' : 'border-gray-300'}`} 
+                />
+                {campoEditConError('numero_documento') && <p className="text-red-500 text-xs mt-1">Este campo no puede estar vacío</p>}
+              </div>
+              
+              {/* Correo electrónico */}
+              <div>
+                <input 
+                  type="email"
+                  value={edit.correo || ""} 
+                  onChange={(e) => setEdit({ ...edit, correo: e.target.value })} 
+                  onBlur={() => tocarCampoEdit('correo')}
+                  placeholder="Correo electrónico *" 
+                  className={`w-full border rounded-lg p-3 ${campoEditConError('correo') ? 'border-red-500 bg-red-50' : 'border-gray-300'}`} 
+                />
+                {campoEditConError('correo') && <p className="text-red-500 text-xs mt-1">Este campo no puede estar vacío</p>}
+              </div>
+              
+              {/* Dirección (opcional) */}
+              <input 
+                value={edit.direccion || ""} 
+                onChange={(e) => setEdit({ ...edit, direccion: e.target.value })} 
+                placeholder="Dirección" 
+                className="w-full border border-gray-300 rounded-lg p-3" 
+              />
+              
+              {/* Grado, Curso, Jornada (opcionales) */}
+              <div className="grid grid-cols-3 gap-4">
+                <NiceSelect 
+                  className="w-full" 
+                  value={(edit.grado as any) ?? ""} 
+                  onChange={(v) => setEdit({ ...edit, grado: v })}
+                  options={[
+                    { value: "", label: "Grado" }, 
+                    { value: "10", label: "Décimo (10°)" }, 
+                    { value: "11", label: "Undécimo (11°)" }
+                  ]} 
+                />
+                <NiceSelect 
+                  className="w-full" 
+                  value={edit.curso || ""} 
+                  onChange={(v) => setEdit({ ...edit, curso: v })}
+                  options={[
+                    { value: "", label: "Curso" }, 
+                    { value: "A", label: "A" }, 
+                    { value: "B", label: "B" }, 
+                    { value: "C", label: "C" }
+                  ]} 
+                />
+                <NiceSelect 
+                  className="w-full" 
+                  value={edit.jornada || ""} 
+                  onChange={(v) => setEdit({ ...edit, jornada: v })}
+                  options={[
+                    { value: "", label: "Jornada" }, 
+                    { value: "mañana", label: "Mañana" }, 
+                    { value: "tarde", label: "Tarde" }
+                  ]} 
+                />
+              </div>
+              
+              <div className="text-xs text-gray-500">
+                * Campos obligatorios
               </div>
             </div>
             <div className="flex justify-end gap-3 mt-6 pt-4 border-t">
@@ -718,7 +1123,7 @@ const Estudiantes: React.FC = () => {
               <button 
                 className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2" 
                 onClick={guardarEditar}
-                disabled={submitting}
+                disabled={submitting || !formularioEdicionValido}
               >
                 {submitting && <FaSpinner className="animate-spin" />}
                 {submitting ? 'Guardando...' : 'Guardar'}
@@ -728,6 +1133,7 @@ const Estudiantes: React.FC = () => {
         </div>
       )}
 
+      {/* Modal Importar Estudiantes */}
       {impOpen && (
         <div className="fixed inset-0 bg-black/40 grid place-items-center z-[60]">
           <div className="bg-white w-full max-w-2xl rounded-xl shadow-xl">
@@ -756,25 +1162,67 @@ const Estudiantes: React.FC = () => {
         </div>
       )}
 
+      {/* Modal Confirmar Inactivar - MEJORADO */}
       {confirm && confirm.t === "inactivar" && (
         <div className="fixed inset-0 bg-black/40 grid place-items-center z-50">
           <div className="bg-white rounded-lg shadow-lg w-full max-w-md p-6">
-            <h3 className="text-lg font-semibold mb-2">Inactivar Estudiante</h3>
-            <p className="text-gray-600 mb-4">¿Estás seguro de inactivar a este estudiante?</p>
+            <div className="flex items-start gap-3 mb-4">
+              <FaExclamationCircle className="text-yellow-500 text-xl mt-0.5" />
+              <div>
+                <h3 className="text-lg font-semibold">Inactivar Estudiante</h3>
+                <p className="text-gray-600 mt-1">
+                  ¿Estás seguro de inactivar a <strong>{confirm.e?.nombre} {confirm.e?.apellido}</strong>?
+                </p>
+                <div className="mt-2 text-sm text-gray-500 bg-gray-50 p-2 rounded">
+                  <div><strong>Documento:</strong> {confirm.e?.tipo_documento} {confirm.e?.numero_documento}</div>
+                  <div><strong>Grado/Curso:</strong> {confirm.e?.grado}° {confirm.e?.curso} - {confirm.e?.jornada}</div>
+                  <div><strong>ID:</strong> {confirm.e?.id_usuario}</div>
+                </div>
+                <p className="text-sm text-red-600 mt-2">
+                  ⚠️ El estudiante dejará de aparecer en las actividades diarias pero se conservará su historial.
+                </p>
+              </div>
+            </div>
             <div className="flex justify-end gap-3">
               <button className="px-4 py-2 border rounded-lg hover:bg-gray-50" onClick={() => setConfirm(null)}>Cancelar</button>
-              <button className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700" onClick={confirmarInactivar}>Confirmar</button>
+              <button 
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center gap-2" 
+                onClick={confirmarInactivar}
+              >
+                <FaToggleOn />
+                Inactivar
+              </button>
             </div>
           </div>
         </div>
       )}
 
+      {/* Modal Confirmar Eliminar - CON MENSAJE MEJORADO */}
       {confirm && confirm.t === "eliminar" && (
         <div className="fixed inset-0 bg-black/40 grid place-items-center z-50">
           <div className="bg-white rounded-lg shadow-lg w-full max-w-md p-6">
-            <h3 className="text-lg font-semibold mb-2">Eliminar Estudiante</h3>
-            <p className="text-gray-600 mb-4">¿Eliminar definitivamente a este estudiante?</p>
-            <div className="flex justify-end gap-3">
+            <div className="flex items-start gap-3 mb-4">
+              <FaExclamationCircle className="text-yellow-500 text-xl mt-0.5" />
+              <div>
+                <h3 className="text-lg font-semibold">Eliminar Estudiante</h3>
+                <p className="text-gray-600 mt-1">
+                  {confirm.e ? (
+                    <>
+                      ¿Deseas proceder con la eliminación de <strong>{confirm.e.nombre} {confirm.e.apellido}</strong>?<br /><br />
+                      <span className="text-sm">
+                        <strong className="text-blue-600 block mb-1">• Si NO tiene historial:</strong>
+                        <span className="text-gray-700 ml-4">Se eliminará permanentemente.</span><br /><br />
+                        <strong className="text-blue-600 block mb-1">• Si TIENE historial:</strong>
+                        <span className="text-gray-700 ml-4">Solo se inactivará para conservar su historial académico.</span>
+                      </span>
+                    </>
+                  ) : (
+                    "¿Eliminar definitivamente a este estudiante?"
+                  )}
+                </p>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 pt-4 border-t">
               <button className="px-4 py-2 border rounded-lg hover:bg-gray-50" onClick={() => setConfirm(null)}>Cancelar</button>
               <button className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700" onClick={confirmarEliminar}>Confirmar</button>
             </div>
