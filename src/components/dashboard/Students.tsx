@@ -265,7 +265,7 @@ const Estudiantes: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [grado, curso, jornada, q]);
   
   useEffect(() => { 
     if (localStorage.getItem('token')) listar(); 
