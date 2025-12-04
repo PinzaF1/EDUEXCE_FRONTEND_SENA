@@ -1,7 +1,7 @@
 // src/assets/Notificaciones.tsx
 import React, { useMemo, useState, useEffect, useRef } from "react";
 import storage from "../../utils/storage";
-import { getJSON, postJSON, deleteJSON } from "../../utils/api";
+import { getJSON, postJSON, deleteJSON, apiUrl } from "../../utils/api";
 import {
   FaBell,
   FaRegClock,
@@ -221,7 +221,9 @@ const Notificaciones: React.FC = () => {
       if (tab === 'no_leidas') params.append('leida', 'false');
       if (filtroTipo !== 'todos') params.append('tipo', filtroTipo);
 
-      const data = await getJSON<any>(`/admin/notificaciones?${params}`);
+      const path = `/admin/notificaciones?${params}`;
+      console.log('[Notificaciones] GET ->', { url: apiUrl(path), path, tokenPresent: !!token });
+      const data = await getJSON<any>(path);
       const notifs = data.notificaciones || [];
         
         // Backend ahora filtra automáticamente las eliminadas (campo 'eliminada' = false)
@@ -482,11 +484,25 @@ const Notificaciones: React.FC = () => {
       setNotis((arr) => arr.filter(n => n.id !== id));
 
       // Llamada real al backend (soft delete)
-      await deleteJSON(`/admin/notificaciones/${id}`);
+      const path = `/admin/notificaciones/${id}`;
+      console.log('[Notificaciones] DELETE ->', { url: apiUrl(path), path, id, tokenPresent: !!token });
+      const resp = await deleteJSON<any>(path);
+      console.log('[Notificaciones] DELETE resp ->', { id, resp });
 
       mostrarToast("Notificación eliminada", "success");
     } catch (error) {
       console.error("Error eliminando notificación:", error);
+      // Log detallado del error si viene con body/status
+      try {
+        const e: any = error;
+        console.error('[Notificaciones] error details:', {
+          message: e.message,
+          status: e.status,
+          body: e.body || e.response || null
+        });
+      } catch (ee) {
+        console.error('[Notificaciones] fallo al serializar error interno', ee);
+      }
       // En vez de romper la UX, encolar la eliminación y mantenerla oculta localmente
       try {
         const idNum = Number(id as any);
@@ -523,10 +539,14 @@ const Notificaciones: React.FC = () => {
       // Optimistic update (normalize id to number for comparison)
       setNotis((arr) => arr.filter(n => !ids.includes(Number(n.id))));
 
-      const data = await postJSON<any>(`/admin/notificaciones/eliminar-multiples`, { ids });
-      mostrarToast(`${data.eliminadas} notificación(es) eliminada(s)`, "success");
+      const path = `/admin/notificaciones/eliminar-multiples`;
+      console.log('[Notificaciones] POST eliminar-multiples ->', { url: apiUrl(path), path, ids, tokenPresent: !!token });
+      const data = await postJSON<any>(path, { ids });
+      console.log('[Notificaciones] POST eliminar-multiples resp ->', { ids, data });
+      mostrarToast(`${data?.eliminadas ?? 0} notificación(es) eliminada(s)`, "success");
     } catch (error) {
       console.error("Error eliminando múltiples:", error);
+      try { const e: any = error; console.error('[Notificaciones] error details:', { message: e.message, status: e.status, body: e.body || null }); } catch(_){}
       // Encolar IDs para reintento y mantener la UI consistente
       try {
         storage.pushDeletedIds(ids);
@@ -551,13 +571,16 @@ const Notificaciones: React.FC = () => {
 
       try {
         try {
-          const data = await postJSON<any>(`/admin/notificaciones/eliminar-multiples`, { ids: queued });
+          const path = `/admin/notificaciones/eliminar-multiples`;
+          console.log('[Notificaciones|cola] POST ->', { url: apiUrl(path), path, queued });
+          const data = await postJSON<any>(path, { ids: queued });
+          console.log('[Notificaciones|cola] resp ->', { queued, data });
           // Limpiar cola
           storage.setDeletedQueue([]);
           mostrarToast(`Sincronizadas ${queued.length} eliminación(es) pendientes`, 'success');
         } catch (err: any) {
           // No hacer nada — se reintentará después
-          console.warn('[Notificaciones] Falló sincronización cola:', err?.message || err);
+          console.warn('[Notificaciones] Falló sincronización cola:', err?.message || err, err?.body || null);
         }
       } catch (err) {
         console.warn('[Notificaciones] Error al sincronizar cola de eliminaciones:', err);

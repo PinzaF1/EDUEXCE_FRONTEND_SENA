@@ -38,12 +38,32 @@ export const request = async <T>(endpoint: string, options: RequestInit = {}): P
   };
 
   const url = joinUrl(API_URL, endpoint);
-  console.log('📡 Petición a:', url);
-  
+
   // Compose headers, but if the body is FormData let the browser set Content-Type (boundary)
   const composedHeaders: Record<string, any> = { ...getHeaders(), ...(options.headers || {}) };
   if (options.body instanceof FormData) {
     delete composedHeaders['Content-Type'];
+  }
+
+  // Log request details for deep debugging
+  try {
+    const method = (options.method || 'GET').toUpperCase();
+    let bodyPreview: any = null;
+    try {
+      if (typeof options.body === 'string') {
+        bodyPreview = JSON.parse(options.body as string);
+      } else if (options.body instanceof FormData) {
+        bodyPreview = '[FormData]';
+      } else {
+        bodyPreview = options.body;
+      }
+    } catch (e) {
+      bodyPreview = options.body;
+    }
+
+    console.log('[api] ->', { method, url, headers: composedHeaders, body: bodyPreview });
+  } catch (e) {
+    console.log('[api] -> error serializing request debug info', e);
   }
 
   const response = await fetch(url, {
@@ -62,14 +82,16 @@ export const request = async <T>(endpoint: string, options: RequestInit = {}): P
     }
   }
 
+  // Log response details for debugging
+  try {
+    console.log('[api] <-', { url, status: response.status, body: data });
+  } catch (e) {
+    console.log('[api] <- error serializing response debug info', e);
+  }
+
   // Handle 401 (unauthorized) globally: clear token, emit event and redirect to login
   if (response.status === 401) {
-    let bodyText = "";
-    try { bodyText = await response.text(); } catch (_) { bodyText = ""; }
-    let parsed: any = {};
-    if (bodyText) {
-      try { parsed = JSON.parse(bodyText); } catch { parsed = { __raw: bodyText }; }
-    }
+    const parsed = data || {};
     if (typeof window !== 'undefined') {
       try { localStorage.removeItem('token'); } catch (_) {}
       try { window.dispatchEvent(new CustomEvent('auth:logout')); } catch (_) {}
