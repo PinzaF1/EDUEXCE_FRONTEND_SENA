@@ -1,142 +1,57 @@
-/**
- * Utilidades centralizadas para peticiones HTTP al backend
- * Incluye headers de ngrok y manejo de autenticación
- */
+import { request, buildUrl } from "../services/api";
 
-// Base URL del backend (SIEMPRE desde variable de entorno)
-const RAW_BASE = (import.meta as any).env?.VITE_API_URL || '/api';
-
-if (!RAW_BASE || RAW_BASE === 'undefined') {
-  console.warn('⚠️ VITE_API_URL no está configurada, usando /api por defecto');
-}
-
-export const API_BASE_URL = RAW_BASE.replace(/\/+$/, ""); // Quitar "/" al final
-
-/**
- * Construye una URL completa del API
- * @param path - Ruta del endpoint (ej: "/admin/login" o "admin/login")
- */
-export const apiUrl = (path: string = ""): string => {
-  const cleanPath = path.startsWith("/") ? path : `/${path}`;
-  return `${API_BASE_URL}${cleanPath}`;
-};
+// Re-export API URL builder for compatibility
+export const apiUrl = buildUrl;
 
 /**
  * Headers base para todas las peticiones
- * INCLUYE el header de ngrok para evitar la página de verificación
  */
 export const baseHeaders = (): Record<string, string> => ({
   "Content-Type": "application/json",
   "Accept": "application/json",
-  "ngrok-skip-browser-warning": "true", // ← CRÍTICO para ngrok
+  "ngrok-skip-browser-warning": "true",
 });
 
 /**
  * Headers con autenticación (incluye token JWT si existe)
  */
-export const authHeaders = (): Record<string, string> => {
+export const authHeaders = (extra: Record<string, string> = {}): Record<string, string> => {
   const token = localStorage.getItem("token");
   return {
     ...baseHeaders(),
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...extra,
   };
 };
 
-/**
- * Helper para peticiones GET con autenticación
- */
+// Helpers delegando en el cliente central `request`
 export const getJSON = async <T>(path: string): Promise<T> => {
-  const url = apiUrl(path);
-  const response = await fetch(url, {
-    method: "GET",
-    headers: authHeaders(),
-    cache: "no-store",
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(errorText || `HTTP ${response.status}`);
-  }
-
-  return response.json();
+  return request<T>(path, { method: 'GET' });
 };
 
-/**
- * Helper para peticiones POST (públicas o con auth)
- */
-export const postJSON = async <T>(
-  path: string,
-  body: any,
-  options?: { requiresAuth?: boolean }
-): Promise<T> => {
-  const url = apiUrl(path);
-  const headers = options?.requiresAuth ? authHeaders() : baseHeaders();
-
-  const response = await fetch(url, {
-    method: "POST",
-    headers,
-    body: JSON.stringify(body),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(errorText || `HTTP ${response.status}`);
+export const postJSON = async <T>(path: string, body: any, options?: { requiresAuth?: boolean }): Promise<T> => {
+  // Normalize ids arrays if present to avoid backend bigint NaN errors
+  if (body && Array.isArray(body.ids)) {
+    body = { ...body, ids: body.ids.map((v: any) => Number(v)).filter((n: number) => !Number.isNaN(n)) };
   }
 
-  return response.json();
+  return request<T>(path, { method: 'POST', body: JSON.stringify(body) });
 };
 
-/**
- * Helper para peticiones PUT con autenticación
- */
 export const putJSON = async <T>(path: string, body: any): Promise<T> => {
-  const url = apiUrl(path);
-  const response = await fetch(url, {
-    method: "PUT",
-    headers: authHeaders(),
-    body: JSON.stringify(body),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(errorText || `HTTP ${response.status}`);
-  }
-
-  return response.json();
+  return request<T>(path, { method: 'PUT', body: JSON.stringify(body) });
 };
 
-/**
- * Helper para peticiones DELETE con autenticación
- */
 export const deleteJSON = async <T>(path: string): Promise<T> => {
-  const url = apiUrl(path);
-  const response = await fetch(url, {
-    method: "DELETE",
-    headers: authHeaders(),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(errorText || `HTTP ${response.status}`);
-  }
-
-  return response.json();
+  return request<T>(path, { method: 'DELETE' });
 };
 
-/**
- * Verificar si hay un token válido
- */
-export const isAuthenticated = (): boolean => {
-  return !!localStorage.getItem("token");
-};
+export const isAuthenticated = (): boolean => !!localStorage.getItem('token');
 
-/**
- * Cerrar sesión (limpiar localStorage)
- */
 export const logout = (): void => {
-  localStorage.removeItem("token");
-  localStorage.removeItem("nombre_institucion");
-  localStorage.removeItem("rol");
-  localStorage.removeItem("id_institucion");
+  localStorage.removeItem('token');
+  localStorage.removeItem('nombre_institucion');
+  localStorage.removeItem('rol');
+  localStorage.removeItem('id_institucion');
 };
 

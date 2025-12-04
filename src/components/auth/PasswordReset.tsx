@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { Link, useSearchParams, useNavigate } from 'react-router-dom'
 import { FaGraduationCap, FaLock, FaEye, FaEyeSlash } from 'react-icons/fa'
 import { FiCheck } from 'react-icons/fi'
-import { apiUrl, baseHeaders } from '@/utils/api'
+import { postJSON } from '@/utils/api'
 
 type RestablecerResponse = {
   ok?: boolean
@@ -69,15 +69,9 @@ const RestablecerAdmin: React.FC = () => {
     setGuardando(true)
 
     try {
-      const res = await fetch(apiUrl('/auth/recovery/admin/restablecer'), {
-        method: 'POST',
-        headers: baseHeaders(),
-        body: JSON.stringify({ token, nueva }),
-      })
+      const data: any = await postJSON('/auth/recovery/admin/restablecer', { token, nueva })
 
-      const data: RestablecerResponse = await res.json()
-
-      if (res.ok && (data.ok ?? true)) {
+      if (data && (data.ok ?? true)) {
         setExito(true)
         setMensaje('¡Contraseña actualizada exitosamente! Redirigiendo al login...')
         setNueva('')
@@ -90,14 +84,14 @@ const RestablecerAdmin: React.FC = () => {
       } else {
         setExito(false)
         setMensaje(
-          data.error || 
-          data.mensaje || 
+          data?.error || 
+          data?.mensaje || 
           'Token inválido o expirado. Solicite un nuevo enlace de recuperación.'
         )
       }
-    } catch {
+    } catch (err: any) {
       setExito(false)
-      setMensaje('Error de red o del servidor.')
+      setMensaje(err?.message || 'Error de red o del servidor.')
     } finally {
       setGuardando(false)
     }

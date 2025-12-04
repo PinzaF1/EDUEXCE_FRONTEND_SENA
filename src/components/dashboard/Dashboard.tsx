@@ -1,16 +1,13 @@
 // src/assets/Dashboard.tsx
 import React, { useEffect, useRef, useState } from "react";
+import { getJSON } from "@/utils/api";
 import { Outlet, useNavigate } from "react-router-dom";
 import { IoMenuOutline } from "react-icons/io5";
 import { FaBell } from "react-icons/fa";
 import { ROUTES } from "@/utils/constants";
 import Sidebar from "./Sidebar";
 
-/* ===== Base URL (sin / al final) ===== */
-const RAW_BASE =
-  (import.meta as any).env?.VITE_API_URL ||
-  "https://gillian-semiluminous-blubberingly.ngrok-free.dev/";
-const API_BASE = RAW_BASE.replace(/\/+$/, "");
+/* ===== Usar cliente central para peticiones (proxy /api en dev) ===== */
 
 /* ===== helpers para manejar avatar por institución ===== */
 type TokenPayload = { id_institucion?: number | string; id?: number | string; [k: string]: any };
@@ -66,27 +63,11 @@ const Dashboard: React.FC = () => {
 
     const cargarPerfil = async () => {
       try {
-        const res = await fetch(`${API_BASE}/admin/perfil`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "ngrok-skip-browser-warning": "true",
-          },
-          cache: "no-store",
-        });
+        // Usar cliente central; getJSON lanzará en caso de error HTTP
+        const data: any = await getJSON('/admin/perfil');
 
-        if (res.status === 401) {
-          localStorage.clear();
-          navigate(ROUTES.LOGIN, { replace: true });
-          return;
-        }
-
-        const text = await res.text();
-        let data: any;
-        try {
-          data = JSON.parse(text);
-        } catch {
-          data = {};
-        }
+        // Si el backend devuelve 401, request() debería lanzar con status 401
+        // En ese caso llegamos al catch y manejamos la limpieza.
 
         const inst = data?.institucion || {};
         const nombre = inst.nombre_institucion ?? inst.nombreInstitucion ?? "";
@@ -115,26 +96,23 @@ const Dashboard: React.FC = () => {
           setRol(rolBack);
           localStorage.setItem("rol", rolBack);
         }
-      } catch {
-        /* nada */
+      } catch (err: any) {
+        // Si el cliente central devolvió 401, limpiar sesión y redirigir
+        if (err && (err as any).status === 401) {
+          localStorage.clear();
+          navigate(ROUTES.LOGIN, { replace: true });
+          return;
+        }
+        // silent fail otherwise
       }
     };
 
     const cargarNotificaciones = async () => {
       try {
-        const res = await fetch(`${API_BASE}/admin/notificaciones`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "ngrok-skip-browser-warning": "true",
-          },
-          cache: "no-store",
-        });
-        if (res.ok) {
-          const data = await res.json();
-          const notifs = Array.isArray(data) ? data : data?.notificaciones || [];
-          setNotificacionesCount(notifs.filter((n: any) => !n.leida).length);
-        }
-      } catch {
+        const data: any = await getJSON('/admin/notificaciones');
+        const notifs = Array.isArray(data) ? data : data?.notificaciones || [];
+        setNotificacionesCount(notifs.filter((n: any) => !n.leida).length);
+      } catch (err) {
         setNotificacionesCount(0);
       }
     };

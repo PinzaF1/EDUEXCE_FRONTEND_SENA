@@ -86,17 +86,41 @@ export default defineConfig({
 
   // Servidor de desarrollo
   server: {
-    port: 5173,
+    port: 5174,
     strictPort: false,
     open: false,
     proxy: {
       '/api': {
-        target: 'https://gillian-semiluminous-blubberingly.ngrok-free.dev',
+        // NOTE: quitar la barra final del target para evitar '//' en la URL
+        target: 'https://eduexce-backend.ddns.net/', // URL de backend para pruebas
         changeOrigin: true,
+        secure: true,
         rewrite: (path) => path.replace(/^\/api/, ''),
         configure: (proxy, _options) => {
-          proxy.on('proxyReq', (proxyReq, _req, _res) => {
-            proxyReq.setHeader('ngrok-skip-browser-warning', 'true');
+          proxy.on('proxyReq', (proxyReq: any, req: any, _res: any) => {
+            // set ngrok header and log mapping
+            proxyReq.setHeader && proxyReq.setHeader('ngrok-skip-browser-warning', 'true');
+            // eslint-disable-next-line no-console
+            console.log('[vite-proxy] proxyReq:', { incoming: req && req.url, proxiedPath: proxyReq.path || proxyReq.getHeader && proxyReq.getHeader('path') });
+          });
+
+          proxy.on('proxyRes', (proxyRes: any, req: any, _res: any) => {
+            // eslint-disable-next-line no-console
+            console.log('[vite-proxy] proxyRes:', { incoming: req && req.url, status: proxyRes && proxyRes.statusCode });
+          });
+
+          // Log de errores del proxy para depuración local
+          proxy.on('error', (err: any, req: any, res: any) => {
+            // eslint-disable-next-line no-console
+            console.error('[vite-proxy] error forwarding', err && err.message, 'req.url=', req && req.url);
+            try {
+              if (res && !res.headersSent) {
+                res.writeHead && res.writeHead(502, { 'Content-Type': 'application/json' });
+                res.end && res.end(JSON.stringify({ error: 'Proxy error', message: err && err.message }));
+              }
+            } catch (e) {
+              // ignore
+            }
           });
         }
       }

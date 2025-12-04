@@ -3,12 +3,17 @@
  * Todas las peticiones al backend pasan por aquí
  */
 
-// CON ESTA:
-const API_URL = import.meta.env.DEV 
-  ? '/api'  // ← En desarrollo SIEMPRE usa el proxy
-  : import.meta.env.VITE_API_URL || 'https://gillian-semiluminous-blubberingly.ngrok-free.dev';
+// Normalize the API URL: prefer env var, fallback to '/api'
+let RAW_API_URL = import.meta.env.VITE_API_URL ?? '/api';
+// Ensure it's a string and trim whitespace
+RAW_API_URL = String(RAW_API_URL).trim();
+// Remove trailing slashes (but keep single '/' for proxy)
+// In development we force the proxy base `/api` to avoid CORS and ensure
+// local dev requests go through the Vite proxy regardless of env overrides.
+const API_URL = import.meta.env.DEV ? '/api' : (RAW_API_URL === '/' ? '/' : RAW_API_URL.replace(/\/+$/, ''));
 
-console.log('🔧 API_URL configurada:', API_URL);
+console.log('🔧 API_URL raw:', RAW_API_URL);
+console.log('🔧 API_URL normalized:', API_URL);
 console.log('🔧 Variables de entorno:', import.meta.env);
 
 // Headers base para todas las peticiones
@@ -23,17 +28,47 @@ const getHeaders = (): HeadersInit => ({
 });
 
 // Cliente HTTP base
-const request = async <T>(endpoint: string, options: RequestInit = {}): Promise<T> => {
-  const url = `${API_URL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
-  
-  console.log('📡 Petición a:', url);
-  
+export const request = async <T>(endpoint: string, options: RequestInit = {}): Promise<T> => {
+  // join base and endpoint without producing double slashes
+  const joinUrl = (base: string, ep: string) => {
+    if (!base || base === '/') return ep.startsWith('/') ? ep : `/${ep}`;
+    const cleanBase = base.replace(/\/+$/g, '');
+    const cleanEp = ep.startsWith('/') ? ep.substring(1) : ep;
+    return `${cleanBase}/${cleanEp}`;
+  };
+
+  const url = joinUrl(API_URL, endpoint);
+
+  // Compose headers, but if the body is FormData let the browser set Content-Type (boundary)
+  const composedHeaders: Record<string, any> = { ...getHeaders(), ...(options.headers || {}) };
+  if (options.body instanceof FormData) {
+    delete composedHeaders['Content-Type'];
+  }
+
+  // Log request details for deep debugging
+  try {
+    const method = (options.method || 'GET').toUpperCase();
+    let bodyPreview: any = null;
+    try {
+      if (typeof options.body === 'string') {
+        bodyPreview = JSON.parse(options.body as string);
+      } else if (options.body instanceof FormData) {
+        bodyPreview = '[FormData]';
+      } else {
+        bodyPreview = options.body;
+      }
+    } catch (e) {
+      bodyPreview = options.body;
+    }
+
+    console.log('[api] ->', { method, url, headers: composedHeaders, body: bodyPreview });
+  } catch (e) {
+    console.log('[api] -> error serializing request debug info', e);
+  }
+
   const response = await fetch(url, {
     ...options,
-    headers: {
-      ...getHeaders(),
-      ...options.headers
-    }
+    headers: composedHeaders
   });
 
   const text = await response.text();
@@ -47,16 +82,43 @@ const request = async <T>(endpoint: string, options: RequestInit = {}): Promise<
     }
   }
 
-  if (!response.ok) {
-    // Prefer structured messages when available, otherwise include status and raw body
-    const msg = (data && (data.error || data.mensaje || data.detalle || data.message)) || data?.__raw || `HTTP ${response.status}`;
-    const e = new Error(String(msg));
+  // Log response details for debugging
+  try {
+    console.log('[api] <-', { url, status: response.status, body: data });
+  } catch (e) {
+    console.log('[api] <- error serializing response debug info', e);
+  }
+
+  // Handle 401 (unauthorized) globally: clear token, emit event and redirect to login
+  if (response.status === 401) {
+    const parsed = data || {};
+    if (typeof window !== 'undefined') {
+      try { localStorage.removeItem('token'); } catch (_) {}
+      try { window.dispatchEvent(new CustomEvent('auth:logout')); } catch (_) {}
+      try { if (!window.location.pathname.startsWith('/login')) window.location.href = '/login'; } catch (_) {}
+    }
+    const e = new Error(String((parsed && (parsed.error || parsed.message)) || `HTTP ${response.status}`));
     (e as any).status = response.status;
-    (e as any).body = data;
+    (e as any).body = parsed;
     throw e;
   }
 
   return data as T;
+};
+
+/**
+ * Construye la URL final del endpoint usando la normalización interna.
+ * Exportado para que otros helpers deleguen en esta lógica.
+ */
+export const buildUrl = (endpoint: string = ''): string => {
+  const joinUrl = (base: string, ep: string) => {
+    if (!base || base === '/') return ep.startsWith('/') ? ep : `/${ep}`;
+    const cleanBase = base.replace(/\/+$/g, '');
+    const cleanEp = ep.startsWith('/') ? ep.substring(1) : ep;
+    return `${cleanBase}/${cleanEp}`;
+  };
+
+  return joinUrl(API_URL, endpoint);
 };
 
 // Métodos públicos de API
@@ -102,14 +164,13 @@ export const api = {
     }),
 
   uploadAvatar: (formData: FormData) =>
-    fetch(`${API_URL}${'/admin/avatar'}`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        'ngrok-skip-browser-warning': 'true'
-      },
-      body: formData
-    }).then(res => res.json()),
+    ((): Promise<any> => {
+      const url = buildUrl('/admin/avatar');
+      const headers = { ...getHeaders() } as Record<string, string>;
+      // Let the browser set the correct Content-Type (boundary) for FormData
+      delete headers['Content-Type'];
+      return fetch(url, { method: 'POST', headers, body: formData }).then((r) => r.json());
+    })(),
 
   // ============ ESTUDIANTES ============
   getStudents: () => request('/estudiantes'),
@@ -133,14 +194,25 @@ export const api = {
     request(`/estudiantes/${id}/toggle-estado`, { method: 'PUT' }),
 
   uploadStudents: (formData: FormData) =>
-    fetch(`${API_URL}${'/estudiantes/upload'}`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        'ngrok-skip-browser-warning': 'true'
-      },
-      body: formData
-    }).then(res => res.json()),
+    ((): Promise<Response> => {
+      const url = buildUrl('/estudiantes/upload');
+      const headers = { ...getHeaders() } as Record<string, string>;
+      delete headers['Content-Type'];
+      return fetch(url, { method: 'POST', headers, body: formData });
+    })(),
+
+  // Upload helper that accepts a full URL and FormData and returns the raw Response
+  uploadTo: (url: string, formData: FormData) =>
+    ((): Promise<Response> => {
+      // Accept either an endpoint (e.g. '/admin/estudiantes/importar') or a full URL
+      let finalUrl = url;
+      if (!finalUrl.startsWith('http') && !finalUrl.startsWith(API_URL)) {
+        finalUrl = buildUrl(finalUrl);
+      }
+      const headers = { ...getHeaders() } as Record<string, string>;
+      delete headers['Content-Type'];
+      return fetch(finalUrl, { method: 'POST', headers, body: formData });
+    })(),
 
   // ============ NOTIFICACIONES ============
   getNotifications: () => request('/notificaciones'),

@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { FaGraduationCap } from 'react-icons/fa'
 import { FiMail, FiLock, FiKey } from 'react-icons/fi'
-import { apiUrl, baseHeaders } from '@/utils/api'
+import { postJSON } from '@/utils/api'
 import Swal from 'sweetalert2'
 
 const BRAND_DARK = '#1E40AF'
@@ -25,15 +25,11 @@ const RestContra: React.FC = () => {
     setEnviando(true)
 
     try {
-      const res = await fetch(apiUrl('/auth/recovery/admin/solicitar'), {
-        method: 'POST',
-        headers: baseHeaders(),
-        body: JSON.stringify({ correo: correo.trim().toLowerCase() }),
-      })
-
-      const data = await res.json()
-
-      if (res.ok && data.success) {
+      const data: any = await postJSON('/auth/recovery/admin/solicitar', { correo: correo.trim().toLowerCase() })
+      // DEBUG: registrar la respuesta del backend para investigar entregas de correo
+      // (se puede remover en producción)
+      console.debug('[PasswordRequest] solicitarCodigo response:', data)
+      if (data && data.success) {
         Swal.fire({
           icon: 'success',
           title: '¡Código Enviado!',
@@ -67,18 +63,9 @@ const RestContra: React.FC = () => {
     setEnviando(true)
 
     try {
-      const res = await fetch(apiUrl('/auth/recovery/admin/verificar'), {
-        method: 'POST',
-        headers: baseHeaders(),
-        body: JSON.stringify({ 
-          correo: correo.trim().toLowerCase(),
-          codigo: codigo.trim() 
-        }),
-      })
-
-      const data = await res.json()
-
-      if (res.ok && data.valid) {
+      const data: any = await postJSON('/auth/recovery/admin/verificar', { correo: correo.trim().toLowerCase(), codigo: codigo.trim() })
+      console.debug('[PasswordRequest] verificarCodigo response:', data)
+      if (data && data.valid) {
         Swal.fire({
           icon: 'success',
           title: '¡Código Válido!',
@@ -133,19 +120,9 @@ const RestContra: React.FC = () => {
     setEnviando(true)
 
     try {
-      const res = await fetch(apiUrl('/auth/recovery/admin/restablecer-codigo'), {
-        method: 'POST',
-        headers: baseHeaders(),
-        body: JSON.stringify({
-          correo: correo.trim().toLowerCase(),
-          codigo: codigo.trim(),
-          nueva_password: nuevaPassword,
-        }),
-      })
-
-      const data = await res.json()
-
-      if (res.ok && data.success) {
+      const data: any = await postJSON('/auth/recovery/admin/restablecer-codigo', { correo: correo.trim().toLowerCase(), codigo: codigo.trim(), nueva_password: nuevaPassword })
+      console.debug('[PasswordRequest] restablecerPassword response:', data)
+      if (data && data.success) {
         await Swal.fire({
           icon: 'success',
           title: '¡Contraseña Actualizada!',
