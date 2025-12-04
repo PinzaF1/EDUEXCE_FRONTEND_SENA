@@ -11,6 +11,8 @@ type TokenPayload = {
   [k: string]: any;
 };
 
+const getToken = (): string => localStorage.getItem('token') || '';
+
 const decodeToken = (): TokenPayload | null => {
   const token = getToken();
   const parts = token.split(".");
@@ -278,7 +280,7 @@ const Perfil: React.FC = () => {
     
     try {
       setSaving(true);
-      const respJson = await putJSON('/admin/perfil', snapshot).catch((e:any) => { throw e; });
+      const respJson = await putJSON('/admin/perfil', snapshot).catch((e:any) => { throw e; }) as any;
       const perfil: PerfilInstitucion = respJson?.institucion ?? respJson ?? snapshot;
 
       aplicarInstitution(perfil as PerfilInstitucion);
