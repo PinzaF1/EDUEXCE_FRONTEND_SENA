@@ -1,21 +1,13 @@
 import React from "react";
+import { AREAS_ORDER, AREA_COLORS } from "@/utils/areas";
+import type { AreaKey } from "@/utils/areas";
 
-// Orden fijado y colores iguales en todo
-const ORDER = ["Lectera Critica", "Matematicas", "Sociales y Ciudadanas", "Ciencias Naturales", "Ingles"] as const;
-const COLORS: Record<(typeof ORDER)[number], string> = {
-  "Lectera Critica":       "#3b82f6",
-  "Matematicas":           "#ef4444",
-  "Sociales y Ciudadanas": "#f59e0b",
-  "Ciencias Naturales":    "#10b981",
-  "Ingles":                "#8b5cf6",
-};
-
-export type RendItem = { nombre: string; valor: number };
+export type RendItem = { nombre: AreaKey; valor: number };
 
 const RendimientoPorArea: React.FC<{ data: RendItem[] }> = ({ data }) => {
   // Normaliza y ordena; si falta un área, valor 0
   const map = new Map<string, number>(data?.map(d => [d.nombre, d.valor]));
-  const base: RendItem[] = ORDER.map(n => ({
+  const base: RendItem[] = AREAS_ORDER.map((n) => ({
     nombre: n,
     valor: Math.max(0, Math.min(100, map.get(n) ?? 0)),
   }));
@@ -32,7 +24,7 @@ const RendimientoPorArea: React.FC<{ data: RendItem[] }> = ({ data }) => {
             <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
               <div 
                 className="h-full rounded-full transition-all duration-300" 
-                style={{ width: `${d.valor}%`, background: COLORS[d.nombre as (typeof ORDER)[number]] }} 
+                style={{ width: `${d.valor}%`, background: AREA_COLORS[d.nombre] }} 
               />
             </div>
             <span className="text-sm font-semibold text-gray-900 text-right" style={{ minWidth: '28px' }}>{d.valor}</span>

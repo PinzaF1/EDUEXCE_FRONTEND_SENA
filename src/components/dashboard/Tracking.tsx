@@ -1,5 +1,7 @@
 // src/pages/dashboard/Seguimiento.tsx
 import React, { useEffect, useState } from "react";
+import { getJSON } from "@/utils/api";
+import { normalizeArea } from '@/utils/areas';
 import {
   FaChartLine,
   FaUsers,
@@ -24,16 +26,8 @@ import {
 import { IoChevronDown, IoChevronUp } from "react-icons/io5";
 
 /* ===== API ===== */
-const RAW_BASE =
-  (import.meta as any).env?.VITE_API_URL;
-
-if (!RAW_BASE) {
-  console.error('❌ VITE_API_URL no configurada');
-  throw new Error('Missing VITE_API_URL environment variable');
-}
-
-const API_BASE = RAW_BASE.replace(/\/+$/, "");
-const STUDENTS_URL = `${API_BASE}/admin/estudiantes`;
+// Usar rutas relativas y el cliente central para que Vite proxy las peticiones en desarrollo
+const STUDENTS_URL = '/admin/estudiantes';
 
 /* ===== Tipos UI ===== */
 type Stats = {
@@ -69,7 +63,7 @@ type EstudianteDetalle = {
   }>;
 };
 type AreaNombre =
-  | "Lectera Critica"
+  | "Lectura Critica"
   | "Lectura Crítica"
   | "Matematicas"
   | "Sociales y Ciudadanas"
@@ -111,36 +105,21 @@ type AtencionRow = {
 };
 
 /* ===== Endpoints web backend ===== */
-const URL_KPIS = `${API_BASE}/web/seguimiento/resumen`;
-const URL_CURSOS = `${API_BASE}/web/seguimiento/cursos`;
-const URL_REFUER = `${API_BASE}/web/seguimiento/areas-refuerzo?umbral=60`;
-const URL_REFUER_DET = `${API_BASE}/web/seguimiento/areas-refuerzo-detalle?umbral_puntaje=60&min_porcentaje=60`;
-const URL_ALERTA = `${API_BASE}/web/seguimiento/estudiantes-alerta?umbral=50&min_intentos=2`;
+const URL_KPIS = '/web/seguimiento/resumen';
+const URL_CURSOS = '/web/seguimiento/cursos';
+const URL_REFUER = '/web/seguimiento/areas-refuerzo?umbral=60';
+const URL_REFUER_DET = '/web/seguimiento/areas-refuerzo-detalle?umbral_puntaje=60&min_porcentaje=60';
+const URL_ALERTA = '/web/seguimiento/estudiantes-alerta?umbral=50&min_intentos=2';
 
 /* ===== Helpers auth + fetch JSON ===== */
-const authHeaders = () => {
-  const t = localStorage.getItem("token") || "";
-  return {
-    "Content-Type": "application/json",
-    "ngrok-skip-browser-warning": "true",
-    ...(t ? { Authorization: `Bearer ${t}` } : {}),
-  };
-};
-const getJSON = async <T = unknown,>(url: string): Promise<T> => {
-  const r = await fetch(url, { headers: authHeaders(), cache: "no-store" });
-  if (!r.ok) throw new Error(await r.text());
-  return r.json();
-};
+// Usar getJSON importado arriba (incluye headers y token)
 
 /* ===== Normalizadores backend → UI ===== */
 const uiAreaFromBackend = (a: string): AreaNombre => {
-  const s = String(a || "").toLowerCase();
-  if (s.includes("ciencia")) return "Ciencias Naturales";
-  if (s.includes("social")) return "Sociales y Ciudadanas";
-  if (s.includes("mate")) return "Matematicas";
-  if (s.includes("ingl")) return "Ingles";
-  if (s.includes("lect") || s.includes("lenguaj")) return "Lectura Crítica";
-  return (a as AreaNombre) || "Lectura Crítica";
+  const n = normalizeArea(a) || 'Lectura Critica';
+  // map normalizeArea result into AreaNombre union variants used here
+  if (n === 'Lectura Critica') return 'Lectura Crítica' as AreaNombre;
+  return (n as AreaNombre);
 };
 
 const parseCursosItems = (raw: any): CursoRow[] => {
@@ -166,7 +145,7 @@ const parseCursosItems = (raw: any): CursoRow[] => {
 const parseAreasRefuerzo = (raw: any): Refuerzo[] => {
   const arr: any[] = Array.isArray(raw?.areas) ? raw.areas : [];
   return arr.map((a) => ({
-    area: uiAreaFromBackend(a?.area) as AreaNombre,
+    area: (normalizeArea(a?.area) || 'Lectura Critica') as AreaNombre,
     porcentaje: Math.round(Number(a?.porcentaje ?? a?.porcentaje_bajo ?? 0)),
     detalle: a?.detalle ?? undefined,
     subtitulo: a?.subtitulo ?? undefined,
@@ -180,10 +159,10 @@ const parseAlerta = (raw: any): AtencionRow[] => {
   return list.map((x) => {
     const nombre = String(x?.nombre ?? x?.estudiante ?? "").trim();
     const curso = String(x?.curso ?? "").trim();
-    const area = uiAreaFromBackend(x?.area_debil ?? x?.areaDebil ?? "Lectera Critica");
+    const area = (normalizeArea(x?.area_debil ?? x?.areaDebil ?? "") || 'Lectura Critica') as AreaNombre;
     const puntaje = Math.round(Number(x?.promedio ?? x?.puntaje ?? 0));
     const ultimaActividad = x?.ultima_actividad ?? x?.ultima_actividad_at ?? x?.last_activity ?? null;
-    const materiaCrit = x?.materia_critica ? { area: uiAreaFromBackend(x?.materia_critica?.area), subtema: x?.materia_critica?.subtema ?? null, porcentaje: Number(x?.materia_critica?.porcentaje ?? 0) } : undefined;
+    const materiaCrit = x?.materia_critica ? { area: (normalizeArea(x?.materia_critica?.area) || 'Lectura Critica'), subtema: x?.materia_critica?.subtema ?? null, porcentaje: Number(x?.materia_critica?.porcentaje ?? 0) } : undefined;
     
     // Formatear fecha si existe
     let fechaFormateada = "";
@@ -242,10 +221,7 @@ const Seguimiento: React.FC = () => {
     // fallback rápido con /admin/estudiantes
     (async () => {
       try {
-        const res = await fetch(STUDENTS_URL, { headers: authHeaders(), cache: "no-store" });
-        if (!res.ok) return setCursos(baseCursosVacios);
-
-        const data = await res.json();
+        const data = await getJSON<any>(STUDENTS_URL);
         const alumnos: any[] = Array.isArray(data) ? data : data?.estudiantes ?? [];
 
         const normalizados = alumnos

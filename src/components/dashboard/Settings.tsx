@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from "react";
 import { FaShieldAlt, FaKey } from "react-icons/fa";
 import { useLocation } from "react-router-dom";
-import { apiUrl, authHeaders } from "@/utils/api";
+import { postJSON } from "@/utils/api";
 
 type TabKey = "institucion" | "seguridad";
 
@@ -49,15 +49,12 @@ const Configuracion: React.FC = () => {
 
     setSavingPwd(true);
     try {
-      const r = await fetch(apiUrl('/admin/perfil/cambiar-password'), {
-        method: "POST",
-        headers: authHeaders(),
-        body: JSON.stringify({ actual: pwdActual, nueva: pwdNueva }),
-      });
-
-      if (!r.ok) {
-        const txt = await r.text().catch(() => "");
-        show("err", txt || "No se pudo actualizar la contraseña.");
+      try {
+        await postJSON('/admin/perfil/cambiar-password', { actual: pwdActual, nueva: pwdNueva });
+        show("ok", "Contraseña actualizada.");
+      } catch (err: any) {
+        const txt = err?.message || "No se pudo actualizar la contraseña.";
+        show("err", txt);
         return;
       }
 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { apiUrl, baseHeaders } from '@/utils/api'
+import { postJSON } from '@/utils/api'
 import {
   FaSchool,
   FaBarcode,
@@ -226,14 +226,9 @@ const RegistroAdm: React.FC = () => {
 
     setCargando(true)
     try {
-      const res = await fetch(apiUrl('/instituciones/registro'), {
-        method: 'POST',
-        headers: baseHeaders(),
-        body: JSON.stringify(form),
-      })
-      const data = await res.json()
+      const data: any = await postJSON('/instituciones/registro', form)
 
-      if (res.ok && data.institucion) {
+      if (data && data.institucion) {
         setMensaje('✓ Institución registrada correctamente. Redirigiendo al login...')
         setEsExito(true)
         
@@ -248,11 +243,11 @@ const RegistroAdm: React.FC = () => {
           navigate('/login', { replace: true })
         }, 2000)
       } else {
-        setMensaje(data.mensaje || data.error || 'Error al registrar la institución')
+        setMensaje(data?.mensaje || data?.error || 'Error al registrar la institución')
         setEsExito(false)
       }
-    } catch {
-      setMensaje('Error de conexión con el servidor')
+    } catch (err: any) {
+      setMensaje(err?.message || 'Error de conexión con el servidor')
       setEsExito(false)
     } finally {
       setCargando(false)

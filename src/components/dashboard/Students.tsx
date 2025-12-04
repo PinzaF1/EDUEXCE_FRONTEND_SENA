@@ -7,36 +7,7 @@ import {
   FaUser, FaIdCard, FaSchool, FaInfoCircle
 } from "react-icons/fa";
 
-/* API */
-// CAMBIO 1: Esta es la línea que necesitas cambiar
-const BASE_URL = '/api';  // ← CAMBIADO DE: (import.meta as any).env?.VITE_API_URL?.replace(/\/+$/, "")
-
-const api = (p = "") => {
-  const path = p.startsWith("/") ? p : `/${p}`;
-  return `${BASE_URL}${path}`;
-};
-const token = () => {
-  try {
-    return (
-      localStorage.getItem("token") ||
-      JSON.parse(localStorage.getItem("auth") || "{}")?.token ||
-      ""
-    );
-  } catch {
-    return "";
-  }
-};
-const hdrs = () => ({
-  Authorization: `Bearer ${token()}`,
-  "ngrok-skip-browser-warning": "true",
-});
-async function jfetch(url: string, init: RequestInit = {}) {
-  const r = await fetch(url, init);
-  const t = await r.text();
-  const d = t ? JSON.parse(t) : {};
-  if (!r.ok) throw new Error(d.error || d.detalle || `HTTP ${r.status}`);
-  return d;
-}
+import api, { request, buildUrl } from "../../services/api";
 
 /* utils */
 const norm = (s: string) =>
@@ -247,9 +218,9 @@ const Estudiantes: React.FC = () => {
 
   useEffect(() => {
     (async () => {
-      if (!token()) return;
+      if (!localStorage.getItem('token')) return;
       try {
-        await jfetch(api("/admin/perfil"), { headers: hdrs() });
+        await request('/admin/perfil');
       } catch {
         // noop
       }
@@ -275,21 +246,8 @@ const Estudiantes: React.FC = () => {
       if (jornada) qs.set("jornada", jornada);
       if (q) qs.set("q", q);
       qs.set("_ts", String(Date.now()));
-      console.log("Cargando estudiantes desde:", api(`/admin/estudiantes?${qs.toString()}`));
-      
-      const response = await fetch(api(`/admin/estudiantes?${qs.toString()}`), {
-        signal: listarRef.current.signal,
-        headers: { 
-          ...hdrs(), 
-          "Cache-Control": "no-cache" 
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
-
-      const d = await response.json();
+      console.log("Cargando estudiantes desde:", buildUrl(`/admin/estudiantes?${qs.toString()}`));
+      const d = await request(`/admin/estudiantes?${qs.toString()}`, { method: 'GET', headers: { "Cache-Control": "no-cache" } });
       console.log("Respuesta del servidor:", d);
       setRows((Array.isArray(d) ? d : []).map(normRow));
       setPage(1);
@@ -307,38 +265,17 @@ const Estudiantes: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [grado, curso, jornada, q]);
-
-  // USEEFFECT PRINCIPAL CON CONTROL DE EJECUCIÓN
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (token()) {
-        listar();
-      }
-    }, 100); // Pequeño delay para evitar múltiples ejecuciones inmediatas
-
-    return () => {
-      clearTimeout(timer);
-    };
-  }, [listar]);
-
-  // Cleanup para el timeout de búsqueda
-  useEffect(() => {
-    return () => {
-      if (searchTimeout) {
-        clearTimeout(searchTimeout);
-      }
-    };
-  }, [searchTimeout]);
-
-  // Cleanup para el abort controller
-  useEffect(() => {
-    return () => {
-      if (listarRef.current) {
-        listarRef.current.abort();
-      }
-    };
+  };
+  
+  useEffect(() => { 
+    if (localStorage.getItem('token')) listar(); 
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  
+  useEffect(() => {
+    if (localStorage.getItem('token')) listar();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [grado, curso, jornada]);
 
   const onCrear = async (ev: React.FormEvent) => {
     ev.preventDefault();
@@ -358,22 +295,8 @@ const Estudiantes: React.FC = () => {
     
     try {
       setSubmitting(true);
-      
-      // Verificar si ya existe un estudiante con ese documento ANTES de enviar
-      const existeDuplicado = rows.some(est => 
-        est.numero_documento === form.numero_documento.trim() && 
-        est.tipo_documento === form.tipo_documento
-      );
-      
-      if (existeDuplicado) {
-        say(`⚠️ Ya existe un estudiante con documento ${form.tipo_documento} ${form.numero_documento}. Verifica los datos.`, 'info');
-        setSubmitting(false);
-        return;
-      }
-      
-      const response = await jfetch(api("/admin/estudiantes"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...hdrs() },
+      await request('/admin/estudiantes', {
+        method: 'POST',
         body: JSON.stringify({
           ...form,
           correo: form.correo?.trim() || null,
@@ -382,7 +305,7 @@ const Estudiantes: React.FC = () => {
           grado: form.grado || null,
           curso: form.curso || null,
           jornada: form.jornada || null,
-        }),
+        })
       });
       
       say("✅ Estudiante registrado exitosamente", "ok");
@@ -459,11 +382,8 @@ const Estudiantes: React.FC = () => {
     try {
       if (!edit?.id_usuario) return setEditMsg("Falta id");
       setSubmitting(true);
-      setEditMsg(""); // Limpiar mensaje de error
-      
-      await jfetch(api(`/admin/estudiantes/${edit.id_usuario}`), {
-        method: "PUT",
-        headers: { "Content-Type": "application/json", ...hdrs() },
+      await request(`/admin/estudiantes/${edit.id_usuario}`, {
+        method: 'PUT',
         body: JSON.stringify({
           nombre: (edit.nombre || "").trim(),
           apellido: (edit.apellido || "").trim(),
@@ -474,7 +394,7 @@ const Estudiantes: React.FC = () => {
           jornada: edit.jornada,
           tipo_documento: edit.tipo_documento,
           numero_documento: edit.numero_documento,
-        }),
+        })
       });
       say("Estudiante actualizado exitosamente", "ok");
       setEditOpen(false);
@@ -497,56 +417,9 @@ const Estudiantes: React.FC = () => {
     setRows((rs) => rs.map((r) => (r.id_usuario === id ? { ...r, is_active: true } : r)));
     
     try {
-      console.log("Reactivando estudiante ID:", id, "Nombre:", estudianteNombre);
-      
-      // Intentar diferentes nombres de campo para reactivar
-      const payloads = [
-        { is_active: true },
-        { estado: true },
-        { activo: true },
-        { estado_activo: true },
-        { habilitado: true }
-      ];
-      
-      let success = false;
-      let lastError: any = null;
-      
-      // Intentar diferentes payloads
-      for (const payload of payloads) {
-        try {
-          // CAMBIO 2: Aquí estaba el error 'epd' - corregido a 'api'
-          const response = await fetch(api(`/admin/estudiantes/${id}`), {
-            method: "PUT",
-            headers: { "Content-Type": "application/json", ...hdrs() },
-            body: JSON.stringify(payload)
-          });
-          
-          if (response.ok) {
-            const data = await response.json().catch(() => ({}));
-            console.log("✅ Reactivación exitosa con payload:", payload);
-            success = true;
-            break;
-          } else {
-            const errorText = await response.text();
-            console.log("❌ Falló reactivación con payload", payload, "Status:", response.status);
-            lastError = { status: response.status, message: errorText };
-          }
-        } catch (error) {
-          console.log("❌ Error con payload", payload, ":", error);
-          lastError = error;
-        }
-      }
-      
-      if (success) {
-        say(`✅ Estudiante "${estudianteNombre}" reactivado exitosamente`, "ok");
-        // Recargar la lista para asegurar datos actualizados
-        await listar();
-      } else {
-        // Revertir cambios en UI
-        setRows((rs) => rs.map((r) => (r.id_usuario === id ? { ...r, is_active: false } : r)));
-        console.error("Todos los intentos de reactivación fallaron. Último error:", lastError);
-        say(`❌ No se pudo reactivar a "${estudianteNombre}". Verifica el formato de datos.`, "err");
-      }
+      await request(`/admin/estudiantes/${id}`, { method: 'PUT', body: JSON.stringify({ is_active: true }) });
+      say("Estudiante reactivado.", "ok");
+      await listar();
     } catch (err: any) {
       // Revertir cambios en UI
       setRows((rs) => rs.map((r) => (r.id_usuario === id ? { ...r, is_active: false } : r)));
@@ -564,58 +437,10 @@ const Estudiantes: React.FC = () => {
     setRows((rs) => rs.map((r) => (r.id_usuario === id ? { ...r, is_active: false } : r)));
     
     try {
-      console.log("Intentando inactivar estudiante ID:", id, "Nombre:", estudianteNombre);
-      
-      // Intentar diferentes nombres de campo que pueda esperar el backend
-      const payloads = [
-        { is_active: false },
-        { estado: false },
-        { activo: false },
-        { estado_activo: false },
-        { habilitado: false }
-      ];
-      
-      let success = false;
-      let lastError: any = null;
-      
-      // Intentar diferentes payloads
-      for (const payload of payloads) {
-        try {
-          console.log("Probando payload:", payload);
-          // CAMBIO 2: Aquí estaba el error 'epd' - corregido a 'api'
-          const response = await fetch(api(`/admin/estudiantes/${id}`), {
-            method: "PUT",
-            headers: { "Content-Type": "application/json", ...hdrs() },
-            body: JSON.stringify(payload)
-          });
-          
-          if (response.ok) {
-            const data = await response.json().catch(() => ({}));
-            console.log("✅ Inactivación exitosa con payload:", payload, "Respuesta:", data);
-            success = true;
-            break;
-          } else {
-            const errorText = await response.text();
-            console.log("❌ Falló con payload", payload, "Status:", response.status, "Error:", errorText);
-            lastError = { status: response.status, message: errorText };
-          }
-        } catch (error) {
-          console.log("❌ Error con payload", payload, ":", error);
-          lastError = error;
-        }
-      }
-      
-      if (success) {
-        say(`✅ Estudiante "${estudianteNombre}" inactivado exitosamente`, "ok");
-        setConfirm(null);
-        // Recargar la lista para asegurar datos actualizados
-        await listar();
-      } else {
-        // Revertir cambios en UI
-        setRows((rs) => rs.map((r) => (r.id_usuario === id ? { ...r, is_active: true } : r)));
-        console.error("Todos los intentos fallaron. Último error:", lastError);
-        say(`❌ No se pudo inactivar a "${estudianteNombre}". Verifica el formato de datos.`, "err");
-      }
+      await request(`/admin/estudiantes/${id}`, { method: 'PUT', body: JSON.stringify({ is_active: false }) });
+      say("Estudiante inactivado.", "ok");
+      setConfirm(null);
+      await listar();
     } catch (e: any) {
       // Revertir cambios en UI
       setRows((rs) => rs.map((r) => (r.id_usuario === id ? { ...r, is_active: true } : r)));
@@ -633,55 +458,17 @@ const Estudiantes: React.FC = () => {
     const estudianteNombre = `${confirm.e.nombre} ${confirm.e.apellido}`;
     
     try {
-      const r = await fetch(api(`/admin/estudiantes/${id}`), {
-        method: "DELETE", 
-        headers: hdrs()
-      });
-      
-      if (r.status === 409) {
-        // Si tiene historial (error 409), inactivar en lugar de eliminar
-        const j = await r.json().catch(() => ({}));
-        console.log("Estudiante tiene historial, inactivando en lugar de eliminar");
-        
-        // Intentar inactivar
-        const payloads = [
-          { is_active: false },
-          { estado: false },
-          { activo: false },
-          { estado_activo: false },
-          { habilitado: false }
-        ];
-        
-        let inactivado = false;
-        
-        for (const payload of payloads) {
-          try {
-            const response = await fetch(api(`/admin/estudiantes/${id}`), {
-              method: "PUT",
-              headers: { "Content-Type": "application/json", ...hdrs() },
-              body: JSON.stringify(payload)
-            });
-            
-            if (response.ok) {
-              inactivado = true;
-              break;
-            }
-          } catch (error) {
-            console.log("Error al intentar inactivar:", error);
-          }
-        }
-        
-        if (inactivado) {
-          say(`Estudiante "${estudianteNombre}" inactivado (tenía historial)`, "info");
-        } else {
-          say(j?.error || "Tiene historial pero no se pudo inactivar.", "info");
-        }
-        
-      } else if (!r.ok) {
-        const j = await r.json().catch(() => ({}));
-        throw new Error(j.error || j.detalle || "No se pudo eliminar");
-      } else {
+      try {
+        await request(`/admin/estudiantes/${id}`, { method: 'DELETE' });
         say("Estudiante eliminado.", "ok");
+        await listar();
+      } catch (err: any) {
+        if ((err as any).status === 409) {
+          const body = (err as any).body || {};
+          say(body?.error || "Tiene historial; solo puede inactivarse.", "info");
+        } else {
+          throw err;
+        }
       }
       
       await listar();
@@ -694,11 +481,13 @@ const Estudiantes: React.FC = () => {
   };
 
   const importar = async (file: File) => {
-    const A = api("/admin/estudiantes/importar"), B = api("/admin/estudiantes/import");
+    const pathA = "/admin/estudiantes/importar", pathB = "/admin/estudiantes/import";
+    const A = buildUrl(pathA), B = buildUrl(pathB);
     const up = async (u: string) => {
       const fd = new FormData();
       ["estudiantes", "file", "archivo"].forEach((k) => fd.append(k, file));
-      return fetch(u, { method: "POST", headers: hdrs(), body: fd });
+      // Use centralized upload helper to keep headers and auth consistent
+      return api.uploadTo(u, fd);
     };
     
     // FUNCIÓN SIMPLIFICADA: Solo muestra toasts, no modal grande
@@ -808,16 +597,20 @@ const Estudiantes: React.FC = () => {
             correo: v("correo") || v("email") || "",
           };
         });
-      const send = (u: string) =>
-        fetch(u, { method: "POST", headers: { "Content-Type": "application/json", ...hdrs() }, body: JSON.stringify({ filas }) });
-      let rj = await send(A);
-      let d2: any = await rj.json().catch(() => ({}));
-      if (rj.status === 404) {
-        const r2 = await send(B);
-        d2 = await r2.json().catch(() => ({}));
-        if (!r2.ok) return say(d2.error || d2.detalle || "Error al importar", "err");
-      } else if (!rj.ok) {
-        return say(d2.error || d2.detalle || "Error al importar", "err");
+      const send = (usePath: string) =>
+        request(usePath, { method: 'POST', body: JSON.stringify({ filas }) });
+      let d2: any = {};
+      try {
+        const rj = await send(pathA);
+        d2 = rj as any;
+      } catch (errA: any) {
+        // Try alternative path if first fails with a 404-like error
+        try {
+          const r2 = await send(pathB);
+          d2 = r2 as any;
+        } catch (errB: any) {
+          return say(errB?.message || 'Error al importar', 'err');
+        }
       }
       showAlerts(d2);
       setImpOpen(false);

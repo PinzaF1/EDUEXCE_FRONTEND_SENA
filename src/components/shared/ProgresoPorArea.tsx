@@ -1,5 +1,6 @@
 // src/pages/assets/ProgresoPorArea.tsx
 import React from "react";
+import { AREA_COLORS } from '@/utils/areas';
 import {
   ResponsiveContainer,
   BarChart,
@@ -13,16 +14,16 @@ import {
 
 // Colores fijos por área (orden exacto solicitado)
 const COLORS = {
-  "Lectera Critica": "#3b82f6",
-  Matematicas: "#ef4444",
-  "Sociales y Ciudadanas": "#f59e0b",
-  "Ciencias Naturales": "#10b981",
-  Ingles: "#8b5cf6",
+  "Lectura Critica": AREA_COLORS['Lectura Critica'],
+  Matematicas: AREA_COLORS.Matematicas,
+  "Sociales y Ciudadanas": AREA_COLORS['Sociales y Ciudadanas'],
+  "Ciencias Naturales": AREA_COLORS['Ciencias Naturales'],
+  Ingles: AREA_COLORS.Ingles,
 };
 
 export type PuntoMes = {
   mes: string; // ahora vendrá ya formateado por el contenedor (p.ej. "2025-septiembre")
-  "Lectera Critica": number;
+  "Lectura Critica": number;
   Matematicas: number;
   "Sociales y Ciudadanas": number;
   "Ciencias Naturales": number;
@@ -36,7 +37,7 @@ const ProgresoPorArea: React.FC<{ data: PuntoMes[] }> = ({ data }) => {
       : [
           {
             mes: "2025-agosto",
-            "Lectera Critica": 0,
+            "Lectura Critica": 0,
             Matematicas: 0,
             "Sociales y Ciudadanas": 0,
             "Ciencias Naturales": 0,
@@ -44,7 +45,7 @@ const ProgresoPorArea: React.FC<{ data: PuntoMes[] }> = ({ data }) => {
           },
           {
             mes: "2025-septiembre",
-            "Lectera Critica": 0,
+            "Lectura Critica": 0,
             Matematicas: 0,
             "Sociales y Ciudadanas": 0,
             "Ciencias Naturales": 0,
@@ -98,7 +99,7 @@ const ProgresoPorArea: React.FC<{ data: PuntoMes[] }> = ({ data }) => {
                 );
               }}
             />
-            <Bar dataKey="Lectera Critica" fill={COLORS["Lectera Critica"]} radius={[4, 4, 0, 0]} />
+              <Bar dataKey="Lectura Critica" fill={COLORS["Lectura Critica"]} radius={[4, 4, 0, 0]} />
             <Bar dataKey="Matematicas" fill={COLORS.Matematicas} radius={[4, 4, 0, 0]} />
             <Bar dataKey="Sociales y Ciudadanas" fill={COLORS["Sociales y Ciudadanas"]} radius={[4, 4, 0, 0]} />
             <Bar dataKey="Ciencias Naturales" fill={COLORS["Ciencias Naturales"]} radius={[4, 4, 0, 0]} />
