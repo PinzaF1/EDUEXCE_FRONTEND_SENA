@@ -10,6 +10,7 @@ import {
   FiZap,
 } from 'react-icons/fi'
 import { FaGraduationCap } from 'react-icons/fa' // ← birrete correcto (Font Awesome)
+import qrCode from '../../assets/images/qr.png'
 
 const BRAND_DARK = '#1E40AF' // azul marca
 const BRAND_MAIN = '#3B82F6' // azul claro
@@ -192,27 +193,25 @@ const Landing: React.FC = () => {
             </div>
 
             <div className="mt-8 flex justify-center">
-              <div className="rounded-2xl bg-white p-3 shadow-xl">
-                <div
-                  className="grid h-52 w-52 place-items-center rounded-xl"
-                  style={{ background: `linear-gradient(135deg, ${BRAND_MAIN}, ${BRAND_DARK})` }}
-                >
-                  <svg width="140" height="140" viewBox="0 0 120 120" fill="white">
-                    <rect x="8" y="8" width="28" height="28" rx="4" />
-                    <rect x="84" y="8" width="28" height="28" rx="4" />
-                    <rect x="8" y="84" width="28" height="28" rx="4" />
-                    <rect x="44" y="44" width="12" height="12" />
-                    <rect x="60" y="44" width="8" height="8" />
-                    <rect x="44" y="60" width="8" height="8" />
-                    <rect x="60" y="60" width="12" height="12" />
-                    <rect x="92" y="56" width="8" height="8" />
-                    <rect x="72" y="84" width="10" height="10" />
-                  </svg>
-                </div>
+              <div className="rounded-2xl bg-white p-4 shadow-xl">
+                <img 
+                  src={qrCode} 
+                  alt="Código QR de EduExce" 
+                  className="h-64 w-64 rounded-xl object-cover"
+                />
               </div>
             </div>
 
-            <p className="mt-3 text-[13px] text-slate-500">*Código QR simulado para prototipo (universal).</p>
+            <div className="mx-auto mt-5 max-w-lg space-y-3 text-center">
+              <p className="text-[15px] text-slate-600">
+                Escanea el código QR para acceder directamente al aplicativo movil.
+              </p>
+              <div className="rounded-lg bg-blue-50 border border-blue-100 p-4">
+                <p className="text-[13px] text-blue-800 leading-relaxed">
+                  <strong>💡 Tip:</strong> Si el APK no se instala desde el navegador, descárgalo y ábrelo desde la app <strong>Files</strong> de Google o tu gestor de archivos.
+                </p>
+              </div>
+            </div>
           </div>
         </Shell>
       </section>
