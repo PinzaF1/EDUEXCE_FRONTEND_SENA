@@ -86,7 +86,7 @@ export default defineConfig({
     port: 4173,
   },
 
-  // 🔹 Vitest
+  //  🔹 Vitest
   test: {
     environment: 'jsdom',
     globals: true,
