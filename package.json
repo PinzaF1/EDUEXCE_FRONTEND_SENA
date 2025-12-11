@@ -8,25 +8,38 @@
     "dev": "vite",
     "dev:clean": "rimraf node_modules/.vite && vite",
     "dev:safe": "node scripts/fix-env.js && npm run dev:clean",
+
     "validate": "node scripts/validate-env.js",
     "fix:env": "node scripts/fix-env.js",
+
     "build": "tsc -b && vite build",
     "build:prod": "tsc -b && vite build --mode production",
     "build:analyze": "tsc -b && vite build --mode production && start dist/stats.html",
+
     "lint": "eslint .",
     "preview": "vite preview",
+
     "cypress:open": "cypress open",
     "cypress:run": "cypress run",
+    "cy:open:component": "cypress open --component",
+    "cy:run:component": "cypress run --component",
+
     "test": "cross-env VITE_API_URL=http://localhost:3000 cypress run",
     "test:open": "cross-env VITE_API_URL=http://localhost:3000 cypress open",
     "test:smoke": "cross-env VITE_API_URL=http://localhost:3000 cypress run --spec 'cypress/e2e/01-smoke/**'",
     "test:auth": "cross-env VITE_API_URL=http://localhost:3000 cypress run --spec 'cypress/e2e/02-auth/**'",
     "test:students": "cross-env VITE_API_URL=http://localhost:3000 cypress run --spec 'cypress/e2e/03-students/**'",
     "test:taller": "cross-env VITE_API_URL=http://localhost:3000 cypress run --spec 'cypress/e2e/04-taller/**'",
+
+    "test:unit": "vitest",
+    "test:unit:watch": "vitest --watch",
+    "test:ui": "vitest --ui",
+
     "deploy:s3": "aws s3 sync dist/ s3://eduexce-frontend-prod --delete --cache-control max-age=31536000,public --exclude index.html",
     "deploy:index": "aws s3 cp dist/index.html s3://eduexce-frontend-prod/index.html --cache-control max-age=0,no-cache,no-store,must-revalidate",
     "deploy:invalidate": "aws cloudfront create-invalidation --distribution-id E10FLUDR757AOX --paths \"/*\"",
     "deploy:full": "npm run build:prod && npm run deploy:s3 && npm run deploy:index && npm run deploy:invalidate",
+
     "docker:dev": "docker-compose up frontend-dev",
     "docker:prod": "docker-compose up frontend-prod",
     "docker:build": "docker build -t eduexce/frontend:latest .",
@@ -46,17 +59,24 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.33.0",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.0",
+    "@testing-library/user-event": "^14.6.1",
     "@types/node": "^24.10.0",
     "@types/react": "^19.1.10",
     "@types/react-dom": "^19.1.7",
     "@vitejs/plugin-react": "^5.0.0",
+    "@vitest/ui": "^4.0.15",
     "autoprefixer": "^10.4.21",
+    "cross-env": "^7.0.3",
     "cypress": "^15.6.0",
     "cypress-file-upload": "^5.0.8",
     "eslint": "^9.33.0",
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.20",
     "globals": "^16.3.0",
+    "jsdom": "^27.3.0",
+    "msw": "^2.12.4",
     "postcss": "^8.5.6",
     "rimraf": "^6.1.2",
     "rollup-plugin-visualizer": "^6.0.5",
@@ -64,6 +84,8 @@
     "typescript": "~5.8.3",
     "typescript-eslint": "^8.39.1",
     "vite": "^7.1.2",
-    "vite-plugin-compression": "^0.5.1"
+    "vite-plugin-compression": "^0.5.1",
+    "vitest": "^4.0.15",
+    "whatwg-fetch": "^3.6.20"
   }
 }

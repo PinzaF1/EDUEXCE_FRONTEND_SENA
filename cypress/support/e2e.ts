@@ -1,24 +1,13 @@
+/// <reference types="cypress" />
+
 // ***********************************************************
-// This example support/e2e.ts is processed and
-// loaded automatically before your test files.
-//
-// This is a great place to put global configuration and
-// behavior that modifies Cypress.
-//
-// You can change the location of this file or turn off
-// automatically serving support files with the
-// 'supportFile' configuration option.
-//
-// You can read more here:
-// https://on.cypress.io/configuration
+// Este archivo se carga automáticamente antes de los tests E2E.
+// Buen lugar para configuración global y behavior de Cypress.
 // ***********************************************************
 
-// Import commands.js using ES2015 syntax:
+// Importa comandos personalizados
 import './commands'
-import 'cypress-file-upload';
-
-// Alternatively you can use CommonJS syntax:
-// require('./commands')
+import 'cypress-file-upload'
 
 // Desactivar excepciones no capturadas para evitar falsos positivos
 Cypress.on('uncaught:exception', (err, runnable) => {
