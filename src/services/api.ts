@@ -82,6 +82,16 @@ export const request = async <T>(endpoint: string, options: RequestInit = {}): P
     }
   }
 
+  // Si la respuesta es un error del servidor, loggear detalles crudos para debug
+  if (response.status >= 400) {
+    try {
+      const hdrs = Object.fromEntries(response.headers ? Array.from(response.headers.entries()) : [] as any);
+      console.error('[api] ERROR RESPONSE ->', { url, status: response.status, statusText: response.statusText, headers: hdrs, bodyText: text });
+    } catch (e) {
+      console.error('[api] ERROR RESPONSE ->', { url, status: response.status, statusText: response.statusText, bodyText: text });
+    }
+  }
+
   // Log response details for debugging
   try {
     console.log('[api] <-', { url, status: response.status, body: data });
@@ -202,17 +212,38 @@ export const api = {
     })(),
 
   // Upload helper that accepts a full URL and FormData and returns the raw Response
-  uploadTo: (url: string, formData: FormData) =>
-    ((): Promise<Response> => {
-      // Accept either an endpoint (e.g. '/admin/estudiantes/importar') or a full URL
-      let finalUrl = url;
-      if (!finalUrl.startsWith('http') && !finalUrl.startsWith(API_URL)) {
-        finalUrl = buildUrl(finalUrl);
+  // Adds a small retry on 5xx to mitigate intermittent server errors.
+  uploadTo: async (url: string, formData: FormData, retries = 1): Promise<Response> => {
+    // Accept either an endpoint (e.g. '/admin/estudiantes/importar') or a full URL
+    let finalUrl = url;
+    if (!finalUrl.startsWith('http') && !finalUrl.startsWith(API_URL)) {
+      finalUrl = buildUrl(finalUrl);
+    }
+    const headers = { ...getHeaders() } as Record<string, string>;
+    delete headers['Content-Type'];
+
+    let lastRes: Response | null = null;
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      try {
+        // eslint-disable-next-line no-await-in-loop
+        const res = await fetch(finalUrl, { method: 'POST', headers, body: formData });
+        lastRes = res;
+        // If not a server error, return immediately
+        if (res.status < 500) return res;
+      } catch (e) {
+        // network/fetch error -> keep trying until attempts exhausted
+        lastRes = null;
       }
-      const headers = { ...getHeaders() } as Record<string, string>;
-      delete headers['Content-Type'];
-      return fetch(finalUrl, { method: 'POST', headers, body: formData });
-    })(),
+
+      // small backoff between attempts
+      // eslint-disable-next-line no-await-in-loop
+      await new Promise((r) => setTimeout(r, 400));
+    }
+
+    // If we have a last response return it, otherwise throw a generic error
+    if (lastRes) return lastRes;
+    throw new Error('Network error while uploading (no response)');
+  },
 
   // ============ NOTIFICACIONES ============
   getNotifications: () => request('/notificaciones'),

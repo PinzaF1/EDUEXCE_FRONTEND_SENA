@@ -1,6 +1,6 @@
 {
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "https://eduexce-backend.ddns.net/$1" },
+    { "source": "/api/(.*)", "destination": "https://gillian-semiluminous-blubberingly.ngrok-free.dev/$1" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }

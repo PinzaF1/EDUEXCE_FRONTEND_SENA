@@ -92,7 +92,7 @@ export default defineConfig({
     proxy: {
       '/api': {
         // NOTE: quitar la barra final del target para evitar '//' en la URL
-        target: 'https://eduexce-backend.ddns.net/', // URL de backend para pruebas
+        target: 'https://gillian-semiluminous-blubberingly.ngrok-free.dev/', // URL de backend ngrok
         changeOrigin: true,
         secure: true,
         rewrite: (path) => path.replace(/^\/api/, ''),
