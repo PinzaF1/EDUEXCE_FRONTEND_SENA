@@ -8,9 +8,8 @@ let RAW_API_URL = import.meta.env.VITE_API_URL ?? '/api';
 // Ensure it's a string and trim whitespace
 RAW_API_URL = String(RAW_API_URL).trim();
 // Remove trailing slashes (but keep single '/' for proxy)
-// In development we force the proxy base `/api` to avoid CORS and ensure
-// local dev requests go through the Vite proxy regardless of env overrides.
-const API_URL = import.meta.env.DEV ? '/api' : (RAW_API_URL === '/' ? '/' : RAW_API_URL.replace(/\/+$/, ''));
+// Use VITE_API_URL when specified, otherwise fallback to '/api'
+const API_URL = RAW_API_URL === '/' ? '/' : RAW_API_URL.replace(/\/+$/, '');
 
 console.log('🔧 API_URL raw:', RAW_API_URL);
 console.log('🔧 API_URL normalized:', API_URL);
@@ -20,8 +19,8 @@ console.log('🔧 Variables de entorno:', import.meta.env);
 const getHeaders = (): HeadersInit => ({
   'Content-Type': 'application/json',
   'Accept': 'application/json',
-  // Solo enviar el header de ngrok en modo desarrollo
-  ...(import.meta.env.DEV ? { 'ngrok-skip-browser-warning': 'true' } : {}),
+  // Enviar header de ngrok cuando la URL contiene ngrok
+  ...(API_URL.includes('ngrok') ? { 'ngrok-skip-browser-warning': 'true' } : {}),
   ...(localStorage.getItem('token') && {
     'Authorization': `Bearer ${localStorage.getItem('token')}`
   })
