@@ -247,7 +247,7 @@ const Estudiantes: React.FC = () => {
       if (q) qs.set("q", q);
       qs.set("_ts", String(Date.now()));
       console.log("Cargando estudiantes desde:", buildUrl(`/admin/estudiantes?${qs.toString()}`));
-      const d = await request(`/admin/estudiantes?${qs.toString()}`, { method: 'GET', headers: { "Cache-Control": "no-cache" } });
+      const d = await request(`/admin/estudiantes?${qs.toString()}`, { method: 'GET' });
       console.log("Respuesta del servidor:", d);
       setRows((Array.isArray(d) ? d : []).map(normRow));
       setPage(1);
